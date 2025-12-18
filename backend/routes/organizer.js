@@ -218,21 +218,94 @@ router.get('/conferences/:id/submissions', async (req, res) => {
       .populate('decision.decidedBy', 'name')
       .sort({ submittedAt: -1 });
 
-    // Get review stats for each submission
+    // Get detailed review stats for each submission
     const submissionsWithReviews = await Promise.all(
       submissions.map(async (submission) => {
         const reviews = await Review.find({ submissionId: submission._id, status: 'submitted' })
-          .populate('reviewerId', 'name');
+          .populate('reviewerId', 'name email')
+          .sort({ submittedAt: -1 });
         
+        // Calculate majority voting for final decision
+        let majorityDecision = null;
+        let decisionReason = '';
+        let voteBreakdown = {
+          accept: 0,
+          reject: 0,
+          minorRevision: 0,
+          majorRevision: 0
+        };
+
+        if (reviews.length > 0) {
+          // Count votes
+          reviews.forEach(review => {
+            if (review.recommendation === 'ACCEPT') {
+              voteBreakdown.accept++;
+            } else if (review.recommendation === 'REJECT') {
+              voteBreakdown.reject++;
+            } else if (review.recommendation === 'MINOR_REVISION') {
+              voteBreakdown.minorRevision++;
+            } else if (review.recommendation === 'MAJOR_REVISION') {
+              voteBreakdown.majorRevision++;
+            }
+          });
+
+          // Calculate average score
+          const avgScore = reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length;
+
+          // Majority voting logic
+          const totalReviews = reviews.length;
+          const requiredReviews = submission.requiredReviews || 3;
+          
+          // Only calculate final decision if all required reviews are completed
+          if (totalReviews >= requiredReviews) {
+            // Simple majority: Accept wins if more than 50% vote accept
+            const acceptPercentage = (voteBreakdown.accept / totalReviews) * 100;
+            const rejectPercentage = (voteBreakdown.reject / totalReviews) * 100;
+
+            if (voteBreakdown.accept > totalReviews / 2) {
+              majorityDecision = 'ACCEPTED';
+              decisionReason = `Majority voting: ${voteBreakdown.accept} out of ${totalReviews} reviewers recommend acceptance (${acceptPercentage.toFixed(0)}%)`;
+            } else if (voteBreakdown.reject >= totalReviews / 2) {
+              majorityDecision = 'REJECTED';
+              // Collect rejection reasons from comments
+              const rejectionReasons = reviews
+                .filter(r => r.recommendation === 'REJECT')
+                .map(r => `• ${r.reviewerId.name}: ${r.comments.substring(0, 200)}${r.comments.length > 200 ? '...' : ''}`)
+                .join('\n');
+              decisionReason = `Majority voting: ${voteBreakdown.reject} out of ${totalReviews} reviewers recommend rejection (${rejectPercentage.toFixed(0)}%)\n\nKey concerns:\n${rejectionReasons}`;
+            } else {
+              // No clear majority
+              majorityDecision = 'NEEDS_REVISION';
+              decisionReason = `Mixed reviews: Accept(${voteBreakdown.accept}), Reject(${voteBreakdown.reject}), Minor Revision(${voteBreakdown.minorRevision}), Major Revision(${voteBreakdown.majorRevision}). Revisions recommended.`;
+            }
+          }
+        }
+
         return {
           ...submission.toObject(),
-          reviews,
+          reviews: reviews.map(r => ({
+            _id: r._id,
+            reviewer: {
+              _id: r.reviewerId._id,
+              name: r.reviewerId.name,
+              email: r.reviewerId.email
+            },
+            score: r.score,
+            recommendation: r.recommendation,
+            comments: r.comments,
+            confidentialComments: r.confidentialComments,
+            submittedAt: r.submittedAt
+          })),
           progress: `${submission.reviewCount || 0} / ${submission.requiredReviews || 3} reviews completed`,
           reviewProgress: {
             completed: submission.reviewCount || 0,
             required: submission.requiredReviews || 3,
             percentage: Math.round(((submission.reviewCount || 0) / (submission.requiredReviews || 3)) * 100)
-          }
+          },
+          voteBreakdown,
+          majorityDecision,
+          decisionReason,
+          averageScore: reviews.length > 0 ? (reviews.reduce((sum, r) => sum + r.score, 0) / reviews.length).toFixed(1) : null
         };
       })
     );

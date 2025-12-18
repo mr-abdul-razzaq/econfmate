@@ -272,15 +272,57 @@ router.get('/submissions', async (req, res) => {
       .populate('decision.decidedBy', 'name')
       .sort({ createdAt: -1 });
 
-    // Add review progress to each submission
-    const submissionsWithProgress = submissions.map(sub => ({
-      ...sub.toObject(),
-      progress: `${sub.reviewCount || 0} / ${sub.requiredReviews || 3} reviews completed`,
-      reviewProgress: {
-        completed: sub.reviewCount || 0,
-        required: sub.requiredReviews || 3,
-        percentage: Math.round(((sub.reviewCount || 0) / (sub.requiredReviews || 3)) * 100)
+    // Add review progress and majority decision to each submission
+    const submissionsWithProgress = await Promise.all(submissions.map(async (sub) => {
+      const subObj = sub.toObject();
+      
+      // Calculate majority decision if reviews are complete
+      let majorityDecision = null;
+      if (sub.reviewCount === sub.requiredReviews && sub.reviewCount > 0) {
+        const Review = require('../models/Review');
+        const reviews = await Review.find({ submissionId: sub._id, status: 'submitted' });
+        
+        if (reviews.length > 0) {
+          const voteBreakdown = {
+            accept: 0,
+            reject: 0,
+            minorRevision: 0,
+            majorRevision: 0
+          };
+
+          reviews.forEach(review => {
+            switch (review.recommendation) {
+              case 'ACCEPT': voteBreakdown.accept++; break;
+              case 'REJECT': voteBreakdown.reject++; break;
+              case 'MINOR_REVISION': voteBreakdown.minorRevision++; break;
+              case 'MAJOR_REVISION': voteBreakdown.majorRevision++; break;
+            }
+          });
+
+          const totalVotes = reviews.length;
+          const acceptPercentage = (voteBreakdown.accept / totalVotes) * 100;
+          const rejectPercentage = (voteBreakdown.reject / totalVotes) * 100;
+
+          if (acceptPercentage > 50) {
+            majorityDecision = 'ACCEPTED';
+          } else if (rejectPercentage >= 50) {
+            majorityDecision = 'REJECTED';
+          } else {
+            majorityDecision = 'NEEDS_REVISION';
+          }
+        }
       }
+
+      return {
+        ...subObj,
+        majorityDecision,
+        progress: `${sub.reviewCount || 0} / ${sub.requiredReviews || 3} reviews completed`,
+        reviewProgress: {
+          completed: sub.reviewCount || 0,
+          required: sub.requiredReviews || 3,
+          percentage: Math.round(((sub.reviewCount || 0) / (sub.requiredReviews || 3)) * 100)
+        }
+      };
     }));
 
     res.json({
@@ -300,7 +342,7 @@ router.get('/submissions', async (req, res) => {
 
 /**
  * @route   GET /api/author/submissions/:id
- * @desc    Get submission details with reviews
+ * @desc    Get submission details with reviews and majority voting
  * @access  Private (Author)
  */
 router.get('/submissions/:id', async (req, res) => {
@@ -320,16 +362,81 @@ router.get('/submissions/:id', async (req, res) => {
       });
     }
 
-    // Get reviews (exclude confidential comments)
+    // Get reviews (exclude confidential comments for author)
     const reviews = await Review.find({ submissionId: req.params.id, status: 'submitted' })
       .select('-confidentialComments')
-      .populate('reviewerId', 'name');
+      .populate('reviewerId', 'name email');
+
+    // Calculate majority voting and review statistics
+    let majorityDecision = null;
+    let voteBreakdown = {
+      accept: 0,
+      reject: 0,
+      minorRevision: 0,
+      majorRevision: 0
+    };
+    let averageScore = null;
+    let decisionReason = '';
+
+    if (reviews.length > 0) {
+      // Count votes
+      reviews.forEach(review => {
+        switch (review.recommendation) {
+          case 'ACCEPT':
+            voteBreakdown.accept++;
+            break;
+          case 'REJECT':
+            voteBreakdown.reject++;
+            break;
+          case 'MINOR_REVISION':
+            voteBreakdown.minorRevision++;
+            break;
+          case 'MAJOR_REVISION':
+            voteBreakdown.majorRevision++;
+            break;
+        }
+      });
+
+      // Calculate average score
+      const totalScore = reviews.reduce((sum, review) => sum + review.score, 0);
+      averageScore = (totalScore / reviews.length).toFixed(1);
+
+      // Determine majority decision (only if all reviews are complete)
+      if (reviews.length === submission.requiredReviews) {
+        const totalVotes = reviews.length;
+        const acceptPercentage = (voteBreakdown.accept / totalVotes) * 100;
+        const rejectPercentage = (voteBreakdown.reject / totalVotes) * 100;
+
+        if (acceptPercentage > 50) {
+          majorityDecision = 'ACCEPTED';
+          decisionReason = `${voteBreakdown.accept} out of ${totalVotes} reviewers (${acceptPercentage.toFixed(0)}%) recommended acceptance.`;
+        } else if (rejectPercentage >= 50) {
+          majorityDecision = 'REJECTED';
+          const rejectionReasons = reviews
+            .filter(r => r.recommendation === 'REJECT')
+            .map(r => r.comments)
+            .filter(c => c && c.trim())
+            .join('; ');
+          decisionReason = `${voteBreakdown.reject} out of ${totalVotes} reviewers (${rejectPercentage.toFixed(0)}%) recommended rejection.`;
+          if (rejectionReasons) {
+            decisionReason += ` Main concerns: ${rejectionReasons}`;
+          }
+        } else {
+          majorityDecision = 'NEEDS_REVISION';
+          decisionReason = `Mixed reviews received. ${voteBreakdown.minorRevision + voteBreakdown.majorRevision} reviewer(s) suggested revisions. Please address the feedback and consider resubmission.`;
+        }
+      }
+    }
 
     res.json({
       success: true,
       data: {
         ...submission.toObject(),
         reviews,
+        voteBreakdown,
+        majorityDecision,
+        decisionReason,
+        averageScore,
         progress: `${submission.reviewCount || 0} / ${submission.requiredReviews || 3} reviews completed`,
         reviewProgress: {
           completed: submission.reviewCount || 0,

@@ -239,6 +239,110 @@ const ViewSubmissions = () => {
                   </div>
                 )}
 
+                {/* Majority Decision Display */}
+                {submission.majorityDecision && (
+                  <div className={`mb-3 p-3 rounded-lg border-2 ${
+                    submission.majorityDecision === 'ACCEPTED' 
+                      ? 'bg-green-50 border-green-300' 
+                      : submission.majorityDecision === 'REJECTED'
+                      ? 'bg-red-50 border-red-300'
+                      : 'bg-yellow-50 border-yellow-300'
+                  }`}>
+                    <div className="flex items-center gap-2 mb-2">
+                      {submission.majorityDecision === 'ACCEPTED' ? (
+                        <svg className="w-5 h-5 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : submission.majorityDecision === 'REJECTED' ? (
+                        <svg className="w-5 h-5 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      ) : (
+                        <svg className="w-5 h-5 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                      )}
+                      <span className={`font-bold text-sm ${
+                        submission.majorityDecision === 'ACCEPTED' 
+                          ? 'text-green-800' 
+                          : submission.majorityDecision === 'REJECTED'
+                          ? 'text-red-800'
+                          : 'text-yellow-800'
+                      }`}>
+                        Majority Voting: {submission.majorityDecision}
+                      </span>
+                      {submission.averageScore && (
+                        <Badge variant="default" className="ml-auto">
+                          Avg Score: {submission.averageScore}/10
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-xs text-gray-700 whitespace-pre-line">{submission.decisionReason}</p>
+                  </div>
+                )}
+
+                {/* Detailed Reviews Section */}
+                {submission.reviews && submission.reviews.length > 0 && (
+                  <div className="mb-3 p-3 bg-gray-50 border border-gray-200 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <h4 className="font-bold text-sm text-gray-900">
+                        Reviewer Feedback ({submission.reviews.length})
+                      </h4>
+                      {submission.voteBreakdown && (
+                        <div className="flex gap-2 text-xs">
+                          <span className="px-2 py-1 bg-green-100 text-green-700 rounded">
+                            Accept: {submission.voteBreakdown.accept}
+                          </span>
+                          <span className="px-2 py-1 bg-red-100 text-red-700 rounded">
+                            Reject: {submission.voteBreakdown.reject}
+                          </span>
+                          {(submission.voteBreakdown.minorRevision > 0 || submission.voteBreakdown.majorRevision > 0) && (
+                            <span className="px-2 py-1 bg-yellow-100 text-yellow-700 rounded">
+                              Revision: {submission.voteBreakdown.minorRevision + submission.voteBreakdown.majorRevision}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      {submission.reviews.map((review, idx) => (
+                        <div key={idx} className="p-2 bg-white border border-gray-200 rounded">
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium text-sm text-gray-900">
+                                {review.reviewer?.name || 'Anonymous Reviewer'}
+                              </span>
+                              <Badge variant={
+                                review.recommendation === 'ACCEPT' ? 'success' :
+                                review.recommendation === 'REJECT' ? 'danger' :
+                                'warning'
+                              } className="text-xs">
+                                {review.recommendation}
+                              </Badge>
+                            </div>
+                            <span className="text-xs font-bold text-gray-700">
+                              Score: {review.score}/10
+                            </span>
+                          </div>
+                          <p className="text-xs text-gray-600 mb-1">
+                            <span className="font-medium">Feedback: </span>
+                            {review.comments?.substring(0, 150)}{review.comments?.length > 150 ? '...' : ''}
+                          </p>
+                          {review.confidentialComments && (
+                            <p className="text-xs text-purple-600 italic">
+                              <span className="font-medium">Confidential: </span>
+                              {review.confidentialComments?.substring(0, 100)}{review.confidentialComments?.length > 100 ? '...' : ''}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 mt-1">
+                            Submitted: {formatDate(review.submittedAt)}
+                          </p>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-3 text-sm">
                   <div>
                     <p className="text-gray-500 text-xs">Submitted</p>
@@ -384,22 +488,124 @@ const ViewSubmissions = () => {
               </Badge>
             </div>
 
+            {/* Assigned Reviewers */}
+            {selectedSubmission.assignedReviewers && selectedSubmission.assignedReviewers.length > 0 && (
+              <div>
+                <h4 className="font-bold text-gray-900 mb-2">Assigned Reviewers</h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedSubmission.assignedReviewers.map((reviewer, idx) => (
+                    <Badge key={idx} variant="info" className="text-sm">
+                      {reviewer.name}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Majority Voting Decision */}
+            {selectedSubmission.majorityDecision && (
+              <div className={`p-4 rounded-lg border-2 ${
+                selectedSubmission.majorityDecision === 'ACCEPTED' 
+                  ? 'bg-green-50 border-green-300' 
+                  : selectedSubmission.majorityDecision === 'REJECTED'
+                  ? 'bg-red-50 border-red-300'
+                  : 'bg-yellow-50 border-yellow-300'
+              }`}>
+                <div className="flex items-center gap-2 mb-2">
+                  {selectedSubmission.majorityDecision === 'ACCEPTED' ? (
+                    <svg className="w-6 h-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : selectedSubmission.majorityDecision === 'REJECTED' ? (
+                    <svg className="w-6 h-6 text-red-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  ) : (
+                    <svg className="w-6 h-6 text-yellow-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                  )}
+                  <span className={`font-bold ${
+                    selectedSubmission.majorityDecision === 'ACCEPTED' 
+                      ? 'text-green-800' 
+                      : selectedSubmission.majorityDecision === 'REJECTED'
+                      ? 'text-red-800'
+                      : 'text-yellow-800'
+                  }`}>
+                    Final Decision: {selectedSubmission.majorityDecision}
+                  </span>
+                  {selectedSubmission.averageScore && (
+                    <Badge variant="default" className="ml-auto">
+                      Average Score: {selectedSubmission.averageScore}/10
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-sm text-gray-700 whitespace-pre-line">{selectedSubmission.decisionReason}</p>
+              </div>
+            )}
+
+            {/* Detailed Reviews */}
             {selectedSubmission.reviews && selectedSubmission.reviews.length > 0 && (
               <div>
-                <h4 className="font-bold text-gray-900 mb-2">Reviews</h4>
-                <div className="space-y-2">
+                <h4 className="font-bold text-gray-900 mb-2">Detailed Review Feedback ({selectedSubmission.reviews.length})</h4>
+                {selectedSubmission.voteBreakdown && (
+                  <div className="flex gap-2 mb-3">
+                    <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm font-medium">
+                      ✓ Accept: {selectedSubmission.voteBreakdown.accept}
+                    </span>
+                    <span className="px-3 py-1 bg-red-100 text-red-700 rounded-full text-sm font-medium">
+                      ✗ Reject: {selectedSubmission.voteBreakdown.reject}
+                    </span>
+                    {selectedSubmission.voteBreakdown.minorRevision > 0 && (
+                      <span className="px-3 py-1 bg-yellow-100 text-yellow-700 rounded-full text-sm font-medium">
+                        Minor Rev: {selectedSubmission.voteBreakdown.minorRevision}
+                      </span>
+                    )}
+                    {selectedSubmission.voteBreakdown.majorRevision > 0 && (
+                      <span className="px-3 py-1 bg-orange-100 text-orange-700 rounded-full text-sm font-medium">
+                        Major Rev: {selectedSubmission.voteBreakdown.majorRevision}
+                      </span>
+                    )}
+                  </div>
+                )}
+                <div className="space-y-3 max-h-96 overflow-y-auto">
                   {selectedSubmission.reviews.map((review, idx) => (
-                    <Card key={idx} className="bg-gray-50">
-                      <p className="text-sm font-medium text-gray-900">
-                        Score: {review.score}/10
-                      </p>
-                      <p className="text-sm text-gray-600">
-                        Recommendation: {review.recommendation}
-                      </p>
-                      {review.comments && (
-                        <p className="text-sm text-gray-600 mt-1">{review.comments}</p>
-                      )}
-                    </Card>
+                    <div key={idx} className="p-4 bg-white border-2 border-gray-200 rounded-lg">
+                      <div className="flex items-center justify-between mb-3">
+                        <div>
+                          <p className="font-bold text-gray-900">{review.reviewer?.name || 'Anonymous Reviewer'}</p>
+                          <p className="text-xs text-gray-500">{review.reviewer?.email}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant={
+                            review.recommendation === 'ACCEPT' ? 'success' :
+                            review.recommendation === 'REJECT' ? 'danger' :
+                            review.recommendation === 'MINOR_REVISION' ? 'warning' :
+                            'default'
+                          }>
+                            {review.recommendation.replace('_', ' ')}
+                          </Badge>
+                          <span className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-bold">
+                            {review.score}/10
+                          </span>
+                        </div>
+                      </div>
+                      <div className="space-y-2">
+                        <div>
+                          <p className="text-xs font-semibold text-gray-700 mb-1">Reviewer Comments:</p>
+                          <p className="text-sm text-gray-700 bg-gray-50 p-2 rounded">{review.comments}</p>
+                        </div>
+                        {review.confidentialComments && (
+                          <div>
+                            <p className="text-xs font-semibold text-purple-700 mb-1">Confidential Comments (Organizer Only):</p>
+                            <p className="text-sm text-purple-700 bg-purple-50 p-2 rounded italic">{review.confidentialComments}</p>
+                          </div>
+                        )}
+                        <p className="text-xs text-gray-400">
+                          Submitted on: {formatDate(review.submittedAt)}
+                        </p>
+                      </div>
+                    </div>
                   ))}
                 </div>
               </div>

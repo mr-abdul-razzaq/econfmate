@@ -4,6 +4,7 @@ import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
+import Input from '../../components/Input';
 import Loading from '../../components/Loading';
 import api from '../../utils/api';
 
@@ -11,10 +12,20 @@ const ActiveConferences = () => {
   const navigate = useNavigate();
   const [conferences, setConferences] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [filters, setFilters] = useState({
+    search: '',
+    domain: '',
+    sortBy: 'deadline'
+  });
+  const [filteredConferences, setFilteredConferences] = useState([]);
 
   useEffect(() => {
     fetchConferences();
   }, []);
+
+  useEffect(() => {
+    applyFilters();
+  }, [conferences, filters]);
 
   const fetchConferences = async () => {
     try {
@@ -25,6 +36,50 @@ const ActiveConferences = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  const applyFilters = () => {
+    let filtered = [...conferences];
+
+    // Search filter
+    if (filters.search) {
+      const searchLower = filters.search.toLowerCase();
+      filtered = filtered.filter(
+        conf =>
+          conf.name.toLowerCase().includes(searchLower) ||
+          conf.venue.toLowerCase().includes(searchLower) ||
+          conf.description.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Domain filter
+    if (filters.domain) {
+      const domainLower = filters.domain.toLowerCase();
+      filtered = filtered.filter(conf =>
+        conf.domains?.some(d => d.toLowerCase().includes(domainLower))
+      );
+    }
+
+    // Sort
+    if (filters.sortBy === 'deadline') {
+      filtered.sort((a, b) => new Date(a.submissionDeadline) - new Date(b.submissionDeadline));
+    } else if (filters.sortBy === 'newest') {
+      filtered.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    } else if (filters.sortBy === 'startDate') {
+      filtered.sort((a, b) => new Date(a.startDate) - new Date(b.startDate));
+    } else if (filters.sortBy === 'papers') {
+      filtered.sort((a, b) => (b.approvedSubmissionCount || 0) - (a.approvedSubmissionCount || 0));
+    }
+
+    setFilteredConferences(filtered);
+  };
+
+  const handleFilterChange = (e) => {
+    const { name, value } = e.target;
+    setFilters(prev => ({
+      ...prev,
+      [name]: value
+    }));
   };
 
   const formatDate = (date) => {
@@ -57,13 +112,61 @@ const ActiveConferences = () => {
           <p className="text-gray-600 mt-1">Browse approved submissions and bid on papers to review</p>
         </div>
 
-        {conferences.length === 0 ? (
+        {/* Filters */}
+        <Card className="mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <Input
+              label="Search"
+              name="search"
+              type="text"
+              value={filters.search}
+              onChange={handleFilterChange}
+              placeholder="Search by name, venue, description..."
+            />
+
+            <Input
+              label="Domain"
+              name="domain"
+              type="text"
+              value={filters.domain}
+              onChange={handleFilterChange}
+              placeholder="e.g., AI, ML, IoT"
+            />
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Sort By
+              </label>
+              <select
+                name="sortBy"
+                value={filters.sortBy}
+                onChange={handleFilterChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-500"
+              >
+                <option value="deadline">Deadline</option>
+                <option value="newest">Newest</option>
+                <option value="startDate">Start Date</option>
+                <option value="papers">Most Papers</option>
+              </select>
+            </div>
+          </div>
+        </Card>
+
+        {filteredConferences.length === 0 ? (
           <Card className="text-center py-12">
-            <p className="text-gray-600 text-lg">No active conferences available</p>
+            <div className="text-6xl mb-4">🔍</div>
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {conferences.length === 0 ? 'No Active Conferences' : 'No Conferences Found'}
+            </h3>
+            <p className="text-gray-600">
+              {conferences.length === 0
+                ? 'Check back later for available conferences'
+                : 'Try adjusting your filters'}
+            </p>
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {conferences.map((conference) => (
+            {filteredConferences.map((conference) => (
               <Card
                 key={conference._id}
                 hoverable
