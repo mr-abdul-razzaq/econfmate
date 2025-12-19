@@ -10,9 +10,15 @@ const GoogleCallback = () => {
   const { setUser } = useAuth();
   const [error, setError] = useState('');
   const [status, setStatus] = useState('Authenticating with Google...');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   useEffect(() => {
     const handleCallback = async () => {
+      // Prevent duplicate API calls
+      if (isProcessing) {
+        return;
+      }
+
       try {
         // Extract authorization code from URL
         const searchParams = new URLSearchParams(location.search);
@@ -30,6 +36,8 @@ const GoogleCallback = () => {
           return;
         }
 
+        // Mark as processing to prevent duplicate calls
+        setIsProcessing(true);
         setStatus('Verifying with server...');
 
         // Parse state to get role if provided
@@ -84,11 +92,13 @@ const GoogleCallback = () => {
         }
         
         setError(errorMessage);
+      } finally {
+        setIsProcessing(false);
       }
     };
 
     handleCallback();
-  }, [location, navigate, setUser]);
+  }, [location.search]); // Only depend on search params to avoid unnecessary re-runs
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center px-4">

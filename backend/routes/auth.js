@@ -30,11 +30,39 @@ router.post('/register', [
     const { name, email, password, role, expertiseDomains } = req.body;
 
     // Check if user already exists
-    const existingUser = await User.findOne({ email });
-    if (existingUser) {
+    const existingUsers = await User.find({ email });
+    if (existingUsers.length > 0) {
+      // Email exists - check role restrictions
+      const hasOrganizerAccount = existingUsers.some(u => u.role === 'organizer');
+      
+      if (hasOrganizerAccount) {
+        return res.status(400).json({
+          success: false,
+          message: 'This email is already registered as an organizer. Please use a different email.'
+        });
+      }
+      
+      if (role === 'organizer') {
+        return res.status(400).json({
+          success: false,
+          message: 'This email is already registered with other roles. Organizers must use a unique email.'
+        });
+      }
+      
+      // For author/reviewer/participant, if same role exists, show error
+      const sameRoleExists = existingUsers.some(u => u.role === role);
+      if (sameRoleExists) {
+        return res.status(400).json({
+          success: false,
+          message: `You already have an account with this email as ${role}. Please login instead.`
+        });
+      }
+      
+      // Different role (author/reviewer/participant) - this shouldn't happen in typical flow
+      // but if it does, we'll return an error to use existing account
       return res.status(400).json({
         success: false,
-        message: 'User with this email already exists'
+        message: 'This email is already registered. Please login to access different roles.'
       });
     }
 
@@ -238,21 +266,40 @@ router.post('/google/callback', [
     const { code, role } = req.body;
 
     // Exchange authorization code for access token
-    const tokenResponse = await axios.post(
-      'https://oauth2.googleapis.com/token',
-      {
-        code,
-        client_id: process.env.GOOGLE_CLIENT_ID,
-        client_secret: process.env.GOOGLE_CLIENT_SECRET,
-        redirect_uri: process.env.GOOGLE_REDIRECT_URI,
-        grant_type: 'authorization_code'
-      },
-      {
-        headers: {
-          'Content-Type': 'application/json'
+    let tokenResponse;
+    try {
+      tokenResponse = await axios.post(
+        'https://oauth2.googleapis.com/token',
+        {
+          code,
+          client_id: process.env.GOOGLE_CLIENT_ID,
+          client_secret: process.env.GOOGLE_CLIENT_SECRET,
+          redirect_uri: process.env.GOOGLE_REDIRECT_URI,
+          grant_type: 'authorization_code'
+        },
+        {
+          headers: {
+            'Content-Type': 'application/json'
+          }
         }
+      );
+    } catch (tokenError) {
+      console.error('Google token exchange error:', tokenError.response?.data || tokenError.message);
+      
+      // Handle specific Google OAuth errors
+      if (tokenError.response?.data?.error === 'invalid_grant') {
+        return res.status(400).json({
+          success: false,
+          message: 'The authorization code has expired or was already used. Please try logging in again.'
+        });
       }
-    );
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to exchange authorization code with Google',
+        error: tokenError.response?.data?.error_description || tokenError.message
+      });
+    }
 
     const { access_token, refresh_token } = tokenResponse.data;
 
@@ -282,22 +329,58 @@ router.post('/google/callback', [
       });
     }
 
+    // Role-based login restrictions
+    const allowedRoles = ['author', 'reviewer', 'participant']; // These can share email
+    const requestedRole = role || 'author';
+
     // Check if user already exists with this Google ID
     let user = await User.findOne({ googleId });
 
     if (user) {
-      // Update existing user's tokens
+      // User exists with this Google ID
+      // Check if trying to change role to/from organizer (not allowed)
+      if (role && user.role !== requestedRole) {
+        // Trying to login with different role
+        if (user.role === 'organizer' || requestedRole === 'organizer') {
+          return res.status(403).json({
+            success: false,
+            message: `This account is registered as ${user.role}. Organizer accounts cannot be used for other roles.`
+          });
+        }
+        // Allow role switch between author/reviewer/participant
+        user.role = requestedRole;
+      }
+      
+      // Update tokens
       user.googleAccessToken = access_token;
       if (refresh_token) {
         user.googleRefreshToken = refresh_token;
       }
       await user.save();
     } else {
-      // Check if user exists with this email (link accounts)
-      user = await User.findOne({ email });
+      // Check if user exists with this email
+      const existingUsers = await User.find({ email });
       
-      if (user) {
-        // Link Google account to existing user
+      if (existingUsers.length > 0) {
+        // Email exists - check role restrictions
+        const hasOrganizerAccount = existingUsers.some(u => u.role === 'organizer');
+        
+        if (hasOrganizerAccount) {
+          return res.status(403).json({
+            success: false,
+            message: 'This email is already registered as an organizer. Please use a different email.'
+          });
+        }
+        
+        if (requestedRole === 'organizer') {
+          return res.status(403).json({
+            success: false,
+            message: 'This email is already registered with other roles. Organizers must use a unique email.'
+          });
+        }
+        
+        // Email exists with author/reviewer/participant - find and link
+        user = existingUsers[0];
         user.googleId = googleId;
         user.googleAccessToken = access_token;
         if (refresh_token) {
@@ -305,6 +388,10 @@ router.post('/google/callback', [
         }
         if (picture && !user.profilePicture) {
           user.profilePicture = picture;
+        }
+        // Update role if specified
+        if (role && allowedRoles.includes(requestedRole)) {
+          user.role = requestedRole;
         }
         await user.save();
       } else {
@@ -316,7 +403,7 @@ router.post('/google/callback', [
           googleAccessToken: access_token,
           googleRefreshToken: refresh_token,
           profilePicture: picture,
-          role: role || 'author', // Default to author if no role specified
+          role: requestedRole,
           expertiseDomains: []
         });
 
@@ -372,22 +459,41 @@ router.post('/orcid/callback', [
     const { code, role } = req.body;
 
     // Exchange authorization code for access token
-    const tokenResponse = await axios.post(
-      'https://orcid.org/oauth/token',
-      null,
-      {
-        params: {
-          client_id: process.env.ORCID_CLIENT_ID,
-          client_secret: process.env.ORCID_CLIENT_SECRET,
-          grant_type: 'authorization_code',
-          code,
-          redirect_uri: process.env.ORCID_REDIRECT_URI
-        },
-        headers: {
-          'Accept': 'application/json'
+    let tokenResponse;
+    try {
+      tokenResponse = await axios.post(
+        'https://orcid.org/oauth/token',
+        null,
+        {
+          params: {
+            client_id: process.env.ORCID_CLIENT_ID,
+            client_secret: process.env.ORCID_CLIENT_SECRET,
+            grant_type: 'authorization_code',
+            code,
+            redirect_uri: process.env.ORCID_REDIRECT_URI
+          },
+          headers: {
+            'Accept': 'application/json'
+          }
         }
+      );
+    } catch (tokenError) {
+      console.error('ORCID token exchange error:', tokenError.response?.data || tokenError.message);
+      
+      // Handle specific ORCID OAuth errors
+      if (tokenError.response?.data?.error === 'invalid_grant') {
+        return res.status(400).json({
+          success: false,
+          message: 'The authorization code has expired or was already used. Please try logging in again.'
+        });
       }
-    );
+      
+      return res.status(400).json({
+        success: false,
+        message: 'Failed to exchange authorization code with ORCID',
+        error: tokenError.response?.data?.error_description || tokenError.message
+      });
+    }
 
     const { orcid, access_token, name } = tokenResponse.data;
 
@@ -398,11 +504,29 @@ router.post('/orcid/callback', [
       });
     }
 
+    // Role-based login restrictions
+    const allowedRoles = ['author', 'reviewer', 'participant']; // These can share email
+    const requestedRole = role || 'author';
+
     // Check if user already exists with this ORCID
     let user = await User.findOne({ orcid });
 
     if (user) {
-      // Update existing user's access token
+      // User exists with this ORCID
+      // Check if trying to change role to/from organizer (not allowed)
+      if (role && user.role !== requestedRole) {
+        // Trying to login with different role
+        if (user.role === 'organizer' || requestedRole === 'organizer') {
+          return res.status(403).json({
+            success: false,
+            message: `This account is registered as ${user.role}. Organizer accounts cannot be used for other roles.`
+          });
+        }
+        // Allow role switch between author/reviewer/participant
+        user.role = requestedRole;
+      }
+      
+      // Update access token
       user.orcidAccessToken = access_token;
       await user.save();
     } else {
@@ -440,21 +564,57 @@ router.post('/orcid/callback', [
         // Continue with basic data even if profile fetch fails
       }
 
-      // Create new user
-      // Generate email from ORCID if name is available
+      // Generate email from ORCID
       const email = `${orcid.replace(/-/g, '')}@orcid.user`;
       
-      user = new User({
-        name: profileData.name || name || `ORCID User ${orcid}`,
-        email,
-        orcid,
-        orcidAccessToken: access_token,
-        affiliation: profileData.affiliation,
-        role: role || 'author', // Default to author if no role specified
-        expertiseDomains: []
-      });
+      // Check if email exists with another account
+      const existingUsers = await User.find({ email });
+      
+      if (existingUsers.length > 0) {
+        // Email exists - check role restrictions
+        const hasOrganizerAccount = existingUsers.some(u => u.role === 'organizer');
+        
+        if (hasOrganizerAccount) {
+          return res.status(403).json({
+            success: false,
+            message: 'This ORCID is already registered as an organizer. Please use a different ORCID.'
+          });
+        }
+        
+        if (requestedRole === 'organizer') {
+          return res.status(403).json({
+            success: false,
+            message: 'This ORCID is already registered with other roles. Organizers must use a unique ORCID.'
+          });
+        }
+        
+        // Use existing account and link ORCID
+        user = existingUsers[0];
+        user.orcid = orcid;
+        user.orcidAccessToken = access_token;
+        user.name = profileData.name || name || user.name;
+        if (profileData.affiliation) {
+          user.affiliation = profileData.affiliation;
+        }
+        // Update role if specified
+        if (role && allowedRoles.includes(requestedRole)) {
+          user.role = requestedRole;
+        }
+        await user.save();
+      } else {
+        // Create new user
+        user = new User({
+          name: profileData.name || name || `ORCID User ${orcid}`,
+          email,
+          orcid,
+          orcidAccessToken: access_token,
+          affiliation: profileData.affiliation,
+          role: requestedRole,
+          expertiseDomains: []
+        });
 
-      await user.save();
+        await user.save();
+      }
     }
 
     // Generate JWT token
