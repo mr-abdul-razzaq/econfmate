@@ -9,7 +9,8 @@ const Navbar = () => {
   const navLinks = {
     organizer: [
       { to: '/organizer/dashboard', label: 'Dashboard' },
-      { to: '/organizer/create-conference', label: 'Create Conference' }
+      { to: '/organizer/create-conference', label: 'Create Conference' },
+      { to: '/organizer/participants', label: 'Participants' }
     ],
     author: [
       { to: '/author/dashboard', label: 'Dashboard' },
@@ -24,6 +25,7 @@ const Navbar = () => {
     participant: [
       { to: '/participant/dashboard', label: 'Dashboard' },
       { to: '/participant/events', label: 'Browse Events' },
+      { to: '/participant/registrations', label: 'My Registrations' },
       { to: '/participant/certificates', label: 'My Certificates' }
     ]
   };

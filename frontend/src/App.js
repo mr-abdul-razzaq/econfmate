@@ -37,6 +37,11 @@ import ParticipantDashboard from './pages/Participant/Dashboard';
 import BrowseEvents from './pages/Participant/BrowseEvents';
 import EventDetails from './pages/Participant/EventDetails';
 import MyCertificates from './pages/Participant/MyCertificates';
+import MyRegistrations from './pages/Participant/MyRegistrations';
+import RegisterForConference from './pages/Participant/RegisterForConference';
+
+// Organizer Participants
+import OrganizerParticipants from './pages/Organizer/Participants';
 
 function App() {
   return (
@@ -81,6 +86,14 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['organizer']}>
                   <ViewSubmissions />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/organizer/participants"
+              element={
+                <ProtectedRoute allowedRoles={['organizer']}>
+                  <OrganizerParticipants />
                 </ProtectedRoute>
               }
             />
@@ -215,6 +228,22 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['participant']}>
                   <BrowseEvents />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/participant/registrations"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <MyRegistrations />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/participant/register/:id"
+              element={
+                <ProtectedRoute allowedRoles={['participant']}>
+                  <RegisterForConference />
                 </ProtectedRoute>
               }
             />

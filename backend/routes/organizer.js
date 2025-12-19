@@ -686,4 +686,54 @@ router.put('/registrations/:id/attendance', async (req, res) => {
   }
 });
 
+/**
+ * @route   GET /api/organizer/conferences/:id/participants
+ * @desc    Get all participants registered for a conference
+ * @access  Private (Organizer)
+ */
+router.get('/conferences/:id/participants', async (req, res) => {
+  try {
+    // Verify conference belongs to organizer
+    const conference = await Conference.findOne({
+      _id: req.params.id,
+      organizerId: req.user.userId
+    });
+
+    if (!conference) {
+      return res.status(404).json({
+        success: false,
+        message: 'Conference not found or unauthorized'
+      });
+    }
+
+    // Get all registrations for this conference
+    const registrations = await Registration.find({ 
+      conferenceId: req.params.id 
+    })
+      .populate('participantId', 'name email affiliation')
+      .sort({ registeredAt: -1 });
+
+    res.json({
+      success: true,
+      data: { 
+        registrations,
+        conference: {
+          _id: conference._id,
+          name: conference.name,
+          startDate: conference.startDate,
+          endDate: conference.endDate
+        }
+      }
+    });
+
+  } catch (error) {
+    console.error('Get participants error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error fetching participants',
+      error: error.message
+    });
+  }
+});
+
 module.exports = router;

@@ -6,10 +6,12 @@ const Select = ({
   value,
   onChange,
   options = [],
+  children,
   required = false,
   error,
   disabled = false,
   className = '',
+  helperText,
   placeholder = 'Select an option'
 }) => {
   return (
@@ -34,13 +36,14 @@ const Select = ({
           transition-all duration-200
         `}
       >
-        <option value="">{placeholder}</option>
-        {options.map((option) => (
+        {!children && <option value="">{placeholder}</option>}
+        {children ? children : options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
         ))}
       </select>
+      {helperText && !error && <p className="mt-1 text-sm text-gray-500">{helperText}</p>}
       {error && <p className="mt-1 text-sm text-red-500">{error}</p>}
     </div>
   );
