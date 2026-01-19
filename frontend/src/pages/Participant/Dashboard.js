@@ -23,7 +23,24 @@ const ParticipantDashboard = () => {
   const fetchDashboard = async () => {
     try {
       const response = await api.get('/participant/dashboard');
-      setData(response.data.data);
+      const dashboardData = response.data.data;
+      
+      // Filter out expired conferences from available conferences
+      const activeAvailableConferences = (dashboardData.availableConferences || []).filter(conf => {
+        if (!conf.endDate) return true;
+        const endDate = new Date(conf.endDate);
+        const today = new Date();
+        // Normalize both to start of day for accurate comparison
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        // Conference is active only if endDate is AFTER today (not equal)
+        return endDate > today;
+      });
+      
+      setData({
+        ...dashboardData,
+        availableConferences: activeAvailableConferences
+      });
     } catch (error) {
       console.error('Error fetching dashboard:', error);
     } finally {

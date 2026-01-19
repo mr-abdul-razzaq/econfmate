@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -23,22 +23,7 @@ const ActiveConferences = () => {
     fetchConferences();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [conferences, filters]);
-
-  const fetchConferences = async () => {
-    try {
-      const response = await api.get('/reviewer/conferences');
-      setConferences(response.data.data?.conferences || response.data.conferences || []);
-    } catch (error) {
-      console.error('Error fetching conferences:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = [...conferences];
 
     // Search filter
@@ -72,6 +57,35 @@ const ActiveConferences = () => {
     }
 
     setFilteredConferences(filtered);
+  }, [conferences, filters]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
+
+  const fetchConferences = async () => {
+    try {
+      const response = await api.get('/reviewer/conferences');
+      const allConferences = response.data.data?.conferences || response.data.conferences || [];
+      
+      // Filter out expired conferences (endDate in the past OR today)
+      const activeConferences = allConferences.filter(conf => {
+        if (!conf.endDate) return true;
+        const endDate = new Date(conf.endDate);
+        const today = new Date();
+        // Normalize both to start of day for accurate comparison
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        // Conference is active only if endDate is AFTER today (not equal)
+        return endDate > today;
+      });
+      
+      setConferences(activeConferences);
+    } catch (error) {
+      console.error('Error fetching conferences:', error);
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleFilterChange = (e) => {

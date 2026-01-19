@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -24,9 +24,33 @@ const ManageBids = () => {
     const [rejectionReason, setRejectionReason] = useState('');
     const [reasonError, setReasonError] = useState('');
 
+    // Paper bids modal state
+    const [selectedPaper, setSelectedPaper] = useState(null);
+    const [showBidsModal, setShowBidsModal] = useState(false);
+
     useEffect(() => {
         fetchBids();
     }, [conferenceId, statusFilter]);
+
+    // Group bids by paper
+    const groupedByPaper = useMemo(() => {
+        const grouped = {};
+        bids.forEach(bid => {
+            const paperId = bid.submissionId?._id;
+            if (!paperId) return;
+            
+            if (!grouped[paperId]) {
+                grouped[paperId] = {
+                    paper: bid.submissionId,
+                    bids: [],
+                    stats: { PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 }
+                };
+            }
+            grouped[paperId].bids.push(bid);
+            grouped[paperId].stats[bid.status] = (grouped[paperId].stats[bid.status] || 0) + 1;
+        });
+        return Object.values(grouped);
+    }, [bids]);
 
     const fetchBids = async () => {
         try {
@@ -162,6 +186,16 @@ const ManageBids = () => {
         return <Badge variant={variants[status] || 'info'}>{status}</Badge>;
     };
 
+    const openPaperBids = (paperGroup) => {
+        setSelectedPaper(paperGroup);
+        setShowBidsModal(true);
+    };
+
+    const closeBidsModal = () => {
+        setShowBidsModal(false);
+        setSelectedPaper(null);
+    };
+
     if (loading && bids.length === 0) {
         return (
             <>
@@ -260,80 +294,55 @@ const ManageBids = () => {
                     </div>
                 )}
 
-                {/* Bids List */}
-                {bids.length === 0 ? (
+                {/* Bids List - Paper Centric View */}
+                {groupedByPaper.length === 0 ? (
                     <Card className="text-center py-12">
                         <div className="text-6xl mb-4">📋</div>
-                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No {statusFilter} Bids</h3>
-                        <p className="text-gray-600">There are no bids with this status.</p>
+                        <h3 className="text-xl font-semibold text-gray-900 mb-2">No Bids Found</h3>
+                        <p className="text-gray-600">No reviewer bids received yet.</p>
                     </Card>
                 ) : (
                     <div className="space-y-4">
-                        {bids.map((bid) => (
-                            <Card key={bid._id}>
-                                <div className="flex items-start gap-4">
-                                    {statusFilter === 'PENDING' && (
-                                        <input
-                                            type="checkbox"
-                                            checked={selectedBids.includes(bid._id)}
-                                            onChange={() => toggleBidSelection(bid._id)}
-                                            className="mt-1 h-5 w-5 rounded border-gray-300"
-                                        />
-                                    )}
-
+                        {groupedByPaper.map((paperGroup) => (
+                            <Card key={paperGroup.paper._id} hoverable>
+                                <div className="flex items-start justify-between">
                                     <div className="flex-1">
-                                        <div className="flex justify-between items-start mb-2">
-                                            <h3 className="font-bold text-gray-900">
-                                                {bid.submissionId?.title || 'Unknown Submission'}
+                                        <div className="flex items-start gap-3 mb-3">
+                                            <h3 className="font-bold text-lg text-gray-900 flex-1">
+                                                {paperGroup.paper.title}
                                             </h3>
-                                            {getStatusBadge(bid.status)}
+                                            {paperGroup.paper.trackId?.name && (
+                                                <Badge variant="info">{paperGroup.paper.trackId.name}</Badge>
+                                            )}
                                         </div>
 
-                                        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm text-gray-600 mb-4">
-                                            <div>
-                                                <span className="font-medium">Reviewer:</span>{' '}
-                                                {bid.reviewerId?.name || 'Unknown'}
+                                        <div className="flex items-center gap-6 text-sm text-gray-600 mb-4">
+                                            <div className="flex items-center gap-2">
+                                                <span className="font-medium">Total Bids:</span>
+                                                <span className="font-bold text-gray-900">{paperGroup.bids.length}</span>
                                             </div>
-                                            <div>
-                                                <span className="font-medium">Email:</span>{' '}
-                                                {bid.reviewerId?.email || 'N/A'}
-                                            </div>
-                                            <div>
-                                                <span className="font-medium">Confidence:</span>{' '}
-                                                {bid.confidence}/10
-                                            </div>
-                                            <div>
-                                                <span className="font-medium">Bid Date:</span>{' '}
-                                                {formatDate(bid.createdAt)}
+                                            <div className="flex items-center gap-4">
+                                                <span className="flex items-center gap-1">
+                                                    <span className="w-2 h-2 bg-yellow-500 rounded-full"></span>
+                                                    <span>{paperGroup.stats.PENDING} Pending</span>
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <span className="w-2 h-2 bg-green-500 rounded-full"></span>
+                                                    <span>{paperGroup.stats.APPROVED} Approved</span>
+                                                </span>
+                                                <span className="flex items-center gap-1">
+                                                    <span className="w-2 h-2 bg-red-500 rounded-full"></span>
+                                                    <span>{paperGroup.stats.REJECTED} Rejected</span>
+                                                </span>
                                             </div>
                                         </div>
 
-                                        {bid.reviewerId?.expertiseDomains?.length > 0 && (
-                                            <div className="text-sm text-gray-600 mb-4">
-                                                <span className="font-medium">Expertise:</span>{' '}
-                                                {bid.reviewerId.expertiseDomains.join(', ')}
-                                            </div>
-                                        )}
-
-                                        {bid.status === 'PENDING' && (
-                                            <div className="flex gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    onClick={() => handleUpdateStatus(bid._id, 'APPROVED')}
-                                                    disabled={updating}
-                                                >
-                                                    Approve
-                                                </Button>
-                                                <Button
-                                                    size="sm"
-                                                    variant="danger"
-                                                    onClick={() => openRejectModal(bid._id)}
-                                                    disabled={updating}
-                                                >
-                                                    Reject
-                                                </Button>
-                                            </div>
-                                        )}
+                                        <Button
+                                            size="sm"
+                                            onClick={() => openPaperBids(paperGroup)}
+                                        >
+                                            View Bids ({paperGroup.bids.length})
+                                        </Button>
                                     </div>
                                 </div>
                             </Card>
@@ -386,6 +395,197 @@ const ManageBids = () => {
                                 </Button>
                             </div>
                         </Card>
+                    </div>
+                )}
+
+                {/* Paper Bids Modal */}
+                {showBidsModal && selectedPaper && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                        <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
+                            {/* Modal Header */}
+                            <div className="px-6 py-4 border-b border-gray-200">
+                                <div className="flex items-start justify-between">
+                                    <div className="flex-1">
+                                        <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                                            {selectedPaper.paper.title}
+                                        </h2>
+                                        <div className="flex items-center gap-3 text-sm text-gray-600">
+                                            {selectedPaper.paper.trackId?.name && (
+                                                <Badge variant="info">{selectedPaper.paper.trackId.name}</Badge>
+                                            )}
+                                            <span>•</span>
+                                            <span>{selectedPaper.bids.length} Bid(s)</span>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={closeBidsModal}
+                                        className="text-gray-400 hover:text-gray-600 text-2xl leading-none"
+                                    >
+                                        ×
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Body - Scrollable */}
+                            <div className="flex-1 overflow-y-auto px-6 py-4">
+                                <div className="space-y-4">
+                                    {selectedPaper.bids.map((bid) => (
+                                        <div
+                                            key={bid._id}
+                                            className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
+                                        >
+                                            <div className="flex items-start gap-4">
+                                                {statusFilter === 'PENDING' && bid.status === 'PENDING' && (
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={selectedBids.includes(bid._id)}
+                                                        onChange={() => toggleBidSelection(bid._id)}
+                                                        className="mt-1 h-5 w-5 rounded border-gray-300"
+                                                    />
+                                                )}
+
+                                                <div className="flex-1">
+                                                    <div className="flex justify-between items-start mb-3">
+                                                        <div className="flex items-center gap-3">
+                                                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                                                                <span className="text-blue-600 font-semibold">
+                                                                    {bid.reviewerId?.name?.charAt(0).toUpperCase() || '?'}
+                                                                </span>
+                                                            </div>
+                                                            <div>
+                                                                <h4 className="font-semibold text-gray-900">
+                                                                    {bid.reviewerId?.name || 'Unknown Reviewer'}
+                                                                </h4>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {bid.reviewerId?.email || 'N/A'}
+                                                                </p>
+                                                            </div>
+                                                        </div>
+                                                        {getStatusBadge(bid.status)}
+                                                    </div>
+
+                                                    <div className="grid grid-cols-2 gap-4 text-sm mb-3">
+                                                        <div className="flex items-center gap-2">
+                                                            <span className="text-gray-600">Confidence:</span>
+                                                            <div className="flex items-center gap-1">
+                                                                <div className="flex gap-0.5">
+                                                                    {[...Array(10)].map((_, i) => (
+                                                                        <div
+                                                                            key={i}
+                                                                            className={`w-2 h-4 rounded-sm ${i < bid.confidence ? 'bg-blue-500' : 'bg-gray-200'
+                                                                                }`}
+                                                                        />
+                                                                    ))}
+                                                                </div>
+                                                                <span className="font-medium text-gray-900 ml-1">
+                                                                    {bid.confidence}/10
+                                                                </span>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <span className="text-gray-600">Bid Date:</span>{' '}
+                                                            <span className="text-gray-900">{formatDate(bid.createdAt)}</span>
+                                                        </div>
+                                                    </div>
+
+                                                    {bid.reviewerId?.expertiseDomains?.length > 0 && (
+                                                        <div className="text-sm mb-3">
+                                                            <span className="text-gray-600">Expertise:</span>
+                                                            <div className="flex flex-wrap gap-2 mt-1">
+                                                                {bid.reviewerId.expertiseDomains.map((domain, idx) => (
+                                                                    <span
+                                                                        key={idx}
+                                                                        className="px-2 py-1 bg-gray-100 text-gray-700 rounded-md text-xs"
+                                                                    >
+                                                                        {domain}
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        </div>
+                                                    )}
+
+                                                    {bid.status === 'PENDING' && (
+                                                        <div className="flex gap-2">
+                                                            <Button
+                                                                size="sm"
+                                                                onClick={() => handleUpdateStatus(bid._id, 'APPROVED')}
+                                                                disabled={updating}
+                                                            >
+                                                                ✓ Approve
+                                                            </Button>
+                                                            <Button
+                                                                size="sm"
+                                                                variant="danger"
+                                                                onClick={() => openRejectModal(bid._id)}
+                                                                disabled={updating}
+                                                            >
+                                                                ✕ Reject
+                                                            </Button>
+                                                        </div>
+                                                    )}
+
+                                                    {bid.rejectionReason && (
+                                                        <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-md">
+                                                            <p className="text-sm text-red-800">
+                                                                <span className="font-medium">Rejection Reason:</span> {bid.rejectionReason}
+                                                            </p>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* Modal Footer with Bulk Actions */}
+                            {statusFilter === 'PENDING' && selectedPaper.stats.PENDING > 0 && (
+                                <div className="px-6 py-4 border-t border-gray-200 bg-gray-50">
+                                    <div className="flex items-center justify-between">
+                                        <div className="text-sm text-gray-600">
+                                            {selectedBids.filter(id =>
+                                                selectedPaper.bids.some(b => b._id === id)
+                                            ).length > 0 && (
+                                                <span>
+                                                    {selectedBids.filter(id =>
+                                                        selectedPaper.bids.some(b => b._id === id)
+                                                    ).length} bid(s) selected
+                                                </span>
+                                            )}
+                                        </div>
+                                        <div className="flex gap-3">
+                                            <Button
+                                                variant="secondary"
+                                                onClick={closeBidsModal}
+                                            >
+                                                Close
+                                            </Button>
+                                            {selectedBids.filter(id =>
+                                                selectedPaper.bids.some(b => b._id === id)
+                                            ).length > 0 && (
+                                                <>
+                                                    <Button
+                                                        size="sm"
+                                                        onClick={() => handleBulkUpdate('APPROVED')}
+                                                        disabled={updating}
+                                                    >
+                                                        Approve Selected
+                                                    </Button>
+                                                    <Button
+                                                        size="sm"
+                                                        variant="danger"
+                                                        onClick={() => handleBulkUpdate('REJECTED')}
+                                                        disabled={updating}
+                                                    >
+                                                        Reject Selected
+                                                    </Button>
+                                                </>
+                                            )}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>

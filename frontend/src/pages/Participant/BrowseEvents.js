@@ -19,7 +19,21 @@ const BrowseEvents = () => {
   const fetchConferences = async () => {
     try {
       const response = await api.get('/participant/conferences');
-      setConferences(response.data.data.conferences);
+      const allConferences = response.data.data.conferences || [];
+      
+      // Filter out expired conferences (endDate in the past OR today)
+      const activeConferences = allConferences.filter(conf => {
+        if (!conf.endDate) return true;
+        const endDate = new Date(conf.endDate);
+        const today = new Date();
+        // Normalize both to start of day for accurate comparison
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        // Conference is active only if endDate is AFTER today (not equal)
+        return endDate > today;
+      });
+      
+      setConferences(activeConferences);
     } catch (error) {
       console.error('Error fetching conferences:', error);
     } finally {

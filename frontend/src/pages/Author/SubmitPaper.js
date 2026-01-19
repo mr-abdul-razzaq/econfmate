@@ -39,7 +39,21 @@ export default function SubmitPaper() {
     try {
       setLoading(true);
       const confData = await discoverConferences();
-      setConferences(confData.data?.conferences || confData.data || []);
+      const allConferences = confData.data?.conferences || confData.data || [];
+      
+      // Filter out expired conferences (endDate in the past OR today)
+      const activeConferences = allConferences.filter(conf => {
+        if (!conf.endDate) return true;
+        const endDate = new Date(conf.endDate);
+        const today = new Date();
+        // Normalize both to start of day for accurate comparison
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        // Conference is active only if endDate is AFTER today (not equal)
+        return endDate > today;
+      });
+      
+      setConferences(activeConferences);
 
       if (conferenceId) {
         const tracksData = await getTracks(conferenceId);

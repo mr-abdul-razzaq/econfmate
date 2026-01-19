@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -44,7 +44,7 @@ const ReviewPaper = () => {
     fetchData();
   }, [actualSubmissionId]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -83,7 +83,11 @@ const ReviewPaper = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [actualSubmissionId]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));

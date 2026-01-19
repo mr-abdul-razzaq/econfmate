@@ -27,7 +27,21 @@ const OrganizerDashboard = () => {
       // Handle nested response structure: response.data.conferences or response.conferences
       const data = response.data || response;
       const conferencesList = data.conferences || data || [];
-      setConferences(Array.isArray(conferencesList) ? conferencesList : []);
+      const allConferences = Array.isArray(conferencesList) ? conferencesList : [];
+      
+      // Filter out expired conferences (endDate in the past OR today)
+      const activeConferences = allConferences.filter(conf => {
+        if (!conf.endDate) return true;
+        const endDate = new Date(conf.endDate);
+        const today = new Date();
+        // Normalize both to start of day for accurate comparison
+        today.setHours(0, 0, 0, 0);
+        endDate.setHours(0, 0, 0, 0);
+        // Conference is active only if endDate is AFTER today (not equal)
+        return endDate > today;
+      });
+      
+      setConferences(activeConferences);
     } catch (err) {
       console.error('Error fetching conferences:', err);
       setError(err.response?.data?.message || 'Failed to load conferences');
@@ -88,10 +102,10 @@ const OrganizerDashboard = () => {
           <Card className="text-center py-12">
             <div className="text-6xl mb-4">📋</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              No Conferences Yet
+              No Active Conferences
             </h3>
             <p className="text-gray-600 mb-6">
-              Create your first conference to get started
+              Create your first conference to get started. Expired conferences are automatically hidden.
             </p>
             <Button
               onClick={() => navigate('/organizer/create-conference')}

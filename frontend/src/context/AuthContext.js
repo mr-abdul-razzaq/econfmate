@@ -74,8 +74,24 @@ export const AuthProvider = ({ children }) => {
     setAuth({ token: null, user: null, isAuthenticated: false });
   }
 
+  function updateUser(updatedUser) {
+    if (!updatedUser) return;
+    
+    const currentToken = auth.token;
+    
+    // Update localStorage
+    localStorage.setItem('user', JSON.stringify(updatedUser));
+    
+    // Force state update with new object reference to trigger re-renders
+    setAuth({
+      token: currentToken,
+      user: { ...updatedUser }, // Create new object reference
+      isAuthenticated: true
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ ...auth, login, register, logout }}>
+    <AuthContext.Provider value={{ ...auth, login, register, logout, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

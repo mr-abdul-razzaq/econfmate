@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
@@ -12,6 +13,7 @@ import { getTracks, getConferenceSubmissionsReviewer, placeBid } from '../../uti
 const ConferenceSubmissions = () => {
   const { id: conferenceId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [submissions, setSubmissions] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -24,11 +26,35 @@ const ConferenceSubmissions = () => {
   const [selectedSubmission, setSelectedSubmission] = useState(null);
   const [selectedConfidence, setSelectedConfidence] = useState(5);
 
-  useEffect(() => {
-    fetchData();
-  }, [conferenceId, trackFilter]);
+  // Get reviewer's expertise domains
+  const reviewerExpertise = useMemo(() => {
+    const domains = user?.expertiseDomains || [];
+    // Normalize to lowercase for case-insensitive matching
+    return domains.map(d => d.toLowerCase().trim());
+  }, [user]);
 
-  const fetchData = async () => {
+  // Filter submissions based on expertise domains
+  const filteredSubmissions = useMemo(() => {
+    if (reviewerExpertise.length === 0) {
+      // If no expertise, show all submissions (or could return empty)
+      return submissions;
+    }
+
+    return submissions.filter(submission => {
+      const trackName = submission.trackId?.name || submission.track || '';
+      const normalizedTrack = trackName.toLowerCase().trim();
+      
+      // Check if track matches any expertise domain
+      return reviewerExpertise.some(expertise => {
+        // Exact match or contains match
+        return normalizedTrack === expertise || 
+               normalizedTrack.includes(expertise) ||
+               expertise.includes(normalizedTrack);
+      });
+    });
+  }, [submissions, reviewerExpertise]);
+
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -44,7 +70,11 @@ const ConferenceSubmissions = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conferenceId, trackFilter]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   const openBidModal = (submission) => {
     setSelectedSubmission(submission);
@@ -95,15 +125,6 @@ const ConferenceSubmissions = () => {
     return <Badge variant={variants[status] || 'default'}>{statusText.toUpperCase()}</Badge>;
   };
 
-  const getConfidenceLabel = (value) => {
-    const labels = {
-      1: 'Low - Not very familiar with this topic',
-      2: 'Medium - Somewhat familiar with this topic',
-      3: 'High - Very familiar with this topic'
-    };
-    return labels[value] || '';
-  };
-
   if (loading) {
     return (
       <>
@@ -126,11 +147,16 @@ const ConferenceSubmissions = () => {
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Conference Submissions</h1>
-            <p className="text-gray-600 mt-1">Browse and bid on papers to review</p>
+            <p className="text-gray-600 mt-1">Browse and bid on papers matching your expertise</p>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-bold text-blue-600">{submissions.length}</p>
-            <p className="text-sm text-gray-600">Submissions</p>
+            <p className="text-2xl font-bold text-blue-600">{filteredSubmissions.length}</p>
+            <p className="text-sm text-gray-600">Matching Papers</p>
+            {submissions.length !== filteredSubmissions.length && (
+              <p className="text-xs text-gray-500 mt-1">
+                ({submissions.length} total)
+              </p>
+            )}
           </div>
         </div>
 
@@ -159,17 +185,41 @@ const ConferenceSubmissions = () => {
         </div>
 
         {/* Submissions Grid */}
-        {submissions.length === 0 ? (
+        {filteredSubmissions.length === 0 ? (
           <Card className="text-center py-12">
             <div className="text-6xl mb-4">📄</div>
-            <h3 className="text-xl font-semibold text-gray-900 mb-2">No Submissions Available</h3>
-            <p className="text-gray-600">
-              {trackFilter ? 'No submissions found for this track' : 'No submissions available for bidding'}
+            <h3 className="text-xl font-semibold text-gray-900 mb-2">
+              {reviewerExpertise.length === 0 
+                ? 'No Expertise Domains Defined'
+                : 'No Papers Match Your Expertise'}
+            </h3>
+            <p className="text-gray-600 mb-4">
+              {reviewerExpertise.length === 0
+                ? 'Please add expertise domains to your profile to view relevant papers.'
+                : submissions.length === 0
+                  ? 'No submissions available for bidding in this conference.'
+                  : `No papers available for your expertise in this conference. ${trackFilter ? 'Try changing the track filter.' : ''}`}
             </p>
+            {reviewerExpertise.length === 0 && (
+              <Button onClick={() => navigate('/profile')}>
+                Update Profile
+              </Button>
+            )}
+            {reviewerExpertise.length > 0 && submissions.length > 0 && (
+              <div className="mt-4 text-sm text-gray-500">
+                <p className="font-medium mb-2">Your Expertise Domains:</p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {reviewerExpertise.map((domain, idx) => (
+                    <Badge key={idx} variant="info" className="capitalize">{domain}</Badge>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs">Papers are filtered to match your expertise domains.</p>
+              </div>
+            )}
           </Card>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {submissions.map((submission) => (
+            {filteredSubmissions.map((submission) => (
               <Card key={submission._id} hoverable>
                 <div className="flex justify-between items-start mb-3">
                   <h3 className="text-lg font-bold text-gray-900 line-clamp-2 flex-1 pr-2">

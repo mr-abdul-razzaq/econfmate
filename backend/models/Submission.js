@@ -7,6 +7,14 @@ const submissionSchema = new mongoose.Schema({
   conferenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conference', required: true },
   trackId: { type: mongoose.Schema.Types.ObjectId, ref: 'Track', required: true }, // NEW: track-scoped
   fileUrl: { type: String, required: true },
+  coAuthors: [
+    {
+      name: { type: String, required: true, trim: true },
+      email: { type: String, required: true, lowercase: true, trim: true },
+      orcid: { type: String, trim: true },
+      userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }
+  ],
   status: {
     type: String,
     enum: ['submitted', 'under_review', 'accepted', 'rejected', 'revision'],
@@ -39,5 +47,6 @@ const submissionSchema = new mongoose.Schema({
 submissionSchema.index({ conferenceId: 1 });
 submissionSchema.index({ trackId: 1 });
 submissionSchema.index({ authorId: 1, status: 1 });
+submissionSchema.index({ 'coAuthors.email': 1 });
 
 module.exports = mongoose.model('Submission', submissionSchema);

@@ -9,6 +9,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import OrcidCallback from './pages/OrcidCallback';
 import GoogleCallback from './pages/GoogleCallback';
+import Profile from './pages/Profile';
 
 // Organizer Pages
 import OrganizerDashboard from './pages/Organizer/Dashboard';
@@ -59,6 +60,16 @@ function App() {
             <Route path="/register" element={<Register />} />
             <Route path="/auth/orcid/callback" element={<OrcidCallback />} />
             <Route path="/auth/google/callback" element={<GoogleCallback />} />
+
+            {/* Profile Route (All Roles) */}
+            <Route
+              path="/profile"
+              element={
+                <ProtectedRoute allowedRoles={['organizer', 'author', 'reviewer', 'participant']}>
+                  <Profile />
+                </ProtectedRoute>
+              }
+            />
 
             {/* Organizer Routes */}
             <Route

@@ -50,6 +50,27 @@ export const uploadPaper = async (file) => {
   return res.data;
 };
 
+// ============ USER PROFILE APIs ============
+
+/**
+ * Get current user profile
+ * @returns {Promise} User profile data
+ */
+export const getUserProfile = async () => {
+  const res = await axiosInstance.get('/auth/me');
+  return res.data.data || res.data;
+};
+
+/**
+ * Update user profile
+ * @param {Object} data - Updated profile data
+ * @returns {Promise} Updated user data
+ */
+export const updateUserProfile = async (data) => {
+  const res = await axiosInstance.put('/auth/profile', data);
+  return res.data.data || res.data;
+};
+
 // ============ TRACK APIs ============
 
 export const getTracks = async (conferenceId, token) => {
