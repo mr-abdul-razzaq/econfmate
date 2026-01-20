@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { discoverConferences } from '../../utils/api';
 import Navbar from '../../components/Navbar';
@@ -20,15 +20,7 @@ const DiscoverConferences = () => {
     domain: '',
   });
 
-  useEffect(() => {
-    fetchConferences();
-  }, []);
-
-  useEffect(() => {
-    applyFilters();
-  }, [conferences, searchTerm, filters]);
-
-  const fetchConferences = async () => {
+  const fetchConferences = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -54,9 +46,9 @@ const DiscoverConferences = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     let filtered = conferences;
 
     // Search term
@@ -82,7 +74,15 @@ const DiscoverConferences = () => {
     }
 
     setFilteredConferences(filtered);
-  };
+  }, [conferences, searchTerm, filters]);
+
+  useEffect(() => {
+    fetchConferences();
+  }, [fetchConferences]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;

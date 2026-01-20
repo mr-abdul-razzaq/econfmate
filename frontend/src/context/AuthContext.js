@@ -1,6 +1,6 @@
 import React, { createContext, useState, useContext } from 'react';
 import axios from 'axios';
-import api, { setAuthToken } from '../utils/api';
+import { setAuthToken } from '../utils/api';
 
 const base = process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api';
 

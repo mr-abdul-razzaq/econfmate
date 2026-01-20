@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams, useNavigate, useParams } from 'react-router-dom';
 import { getTracks, submitPaper, discoverConferences, uploadPaper } from '../../utils/api';
 import Navbar from '../../components/Navbar';
@@ -43,11 +43,7 @@ export default function SubmitPaper() {
   });
   const [keywordInput, setKeywordInput] = useState('');
 
-  useEffect(() => {
-    fetchInitialData();
-  }, []);
-
-  const fetchInitialData = async () => {
+  const fetchInitialData = useCallback(async () => {
     try {
       setLoading(true);
       const confData = await discoverConferences();
@@ -77,7 +73,11 @@ export default function SubmitPaper() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conferenceId]);
+
+  useEffect(() => {
+    fetchInitialData();
+  }, [fetchInitialData]);
 
   const handleConferenceChange = async (e) => {
     const confId = e.target.value;

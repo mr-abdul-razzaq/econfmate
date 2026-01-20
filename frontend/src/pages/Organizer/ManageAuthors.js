@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -32,13 +32,7 @@ const ManageAuthors = () => {
     const [error, setError] = useState(null);
     const [activeTab, setActiveTab] = useState('authors');
 
-    useEffect(() => {
-        if (conferenceId) {
-            fetchData();
-        }
-    }, [conferenceId]);
-
-    const fetchData = async () => {
+    const fetchData = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -59,7 +53,13 @@ const ManageAuthors = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [conferenceId]);
+
+    useEffect(() => {
+        if (conferenceId) {
+            fetchData();
+        }
+    }, [conferenceId, fetchData]);
 
     const handleAttendanceToggle = async (submission) => {
         try {

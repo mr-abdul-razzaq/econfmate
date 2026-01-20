@@ -1,6 +1,5 @@
-import React, { useEffect, useState, useContext, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { AuthContext } from '../../context/AuthContext';
 import { getAuthorSubmissions } from '../../utils/api';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -11,7 +10,6 @@ import Select from '../../components/Select';
 
 export default function MySubmissions() {
   const navigate = useNavigate();
-  const { user } = useContext(AuthContext);
   const [submissions, setSubmissions] = useState([]);
   const [filteredSubmissions, setFilteredSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -35,19 +33,7 @@ export default function MySubmissions() {
     return { mySubmissions: primary, myPapers: coAuthored };
   }, [submissions]);
 
-  useEffect(() => {
-    fetchSubmissions();
-  }, []);
-
-  useEffect(() => {
-    if (statusFilter) {
-      setFilteredSubmissions(mySubmissions.filter((s) => s.status === statusFilter));
-    } else {
-      setFilteredSubmissions(mySubmissions);
-    }
-  }, [statusFilter, mySubmissions]);
-
-  const fetchSubmissions = async () => {
+  const fetchSubmissions = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -59,7 +45,19 @@ export default function MySubmissions() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    fetchSubmissions();
+  }, [fetchSubmissions]);
+
+  useEffect(() => {
+    if (statusFilter) {
+      setFilteredSubmissions(mySubmissions.filter((s) => s.status === statusFilter));
+    } else {
+      setFilteredSubmissions(mySubmissions);
+    }
+  }, [statusFilter, mySubmissions]);
 
   const getStatusBadge = (status) => {
     const variants = {

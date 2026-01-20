@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getConferenceDetailsAuthor, getTracks } from '../../utils/api';
 import Navbar from '../../components/Navbar';
@@ -14,11 +14,7 @@ export default function ConferenceDetails() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    fetchDetails();
-  }, [conferenceId]);
-
-  const fetchDetails = async () => {
+  const fetchDetails = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -36,7 +32,11 @@ export default function ConferenceDetails() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [conferenceId]);
+
+  useEffect(() => {
+    fetchDetails();
+  }, [fetchDetails]);
 
   if (loading) return <Loading />;
 

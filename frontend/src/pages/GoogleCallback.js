@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import axios from 'axios';
@@ -10,95 +10,95 @@ const GoogleCallback = () => {
   const { setUser } = useAuth();
   const [error, setError] = useState('');
   const [status, setStatus] = useState('Authenticating with Google...');
-  const [isProcessing, setIsProcessing] = useState(false);
+  const isProcessingRef = useRef(false);
 
-  useEffect(() => {
-    const handleCallback = async () => {
-      // Prevent duplicate API calls
-      if (isProcessing) {
+  const handleCallback = useCallback(async () => {
+    // Prevent duplicate API calls
+    if (isProcessingRef.current) {
+      return;
+    }
+
+    try {
+      // Extract authorization code from URL
+      const searchParams = new URLSearchParams(location.search);
+      const code = searchParams.get('code');
+      const state = searchParams.get('state');
+      const errorParam = searchParams.get('error');
+
+      if (errorParam) {
+        setError('Google authentication was denied or failed');
         return;
       }
 
-      try {
-        // Extract authorization code from URL
-        const searchParams = new URLSearchParams(location.search);
-        const code = searchParams.get('code');
-        const state = searchParams.get('state');
-        const errorParam = searchParams.get('error');
-
-        if (errorParam) {
-          setError('Google authentication was denied or failed');
-          return;
-        }
-
-        if (!code) {
-          setError('No authorization code received from Google');
-          return;
-        }
-
-        // Mark as processing to prevent duplicate calls
-        setIsProcessing(true);
-        setStatus('Verifying with server...');
-
-        // Parse state to get role if provided
-        let role = null;
-        if (state) {
-          try {
-            const stateData = JSON.parse(decodeURIComponent(state));
-            role = stateData.role;
-          } catch (e) {
-            console.warn('Could not parse state:', e);
-          }
-        }
-
-        // Send code to backend
-        const response = await axios.post(
-          `${process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api'}/auth/google/callback`,
-          { code, role }
-        );
-
-        if (response.data.success) {
-          setStatus('Login successful! Redirecting...');
-          
-          // Store token and user data
-          localStorage.setItem('token', response.data.data.token);
-          localStorage.setItem('user', JSON.stringify(response.data.data.user));
-          setUser(response.data.data.user);
-
-          // Redirect to dashboard
-          setTimeout(() => {
-            navigate(`/${response.data.data.user.role}/dashboard`);
-          }, 1000);
-        } else {
-          setError(response.data.message || 'Authentication failed');
-        }
-
-      } catch (err) {
-        console.error('Google callback error:', err);
-        console.error('Error details:', {
-          status: err.response?.status,
-          data: err.response?.data,
-          message: err.message
-        });
-        
-        // Provide more specific error messages
-        let errorMessage = 'An error occurred during authentication';
-        if (err.response?.data?.message) {
-          errorMessage = err.response.data.message;
-        } else if (err.response?.data?.error) {
-          errorMessage = err.response.data.error;
-        } else if (err.message) {
-          errorMessage = `Network error: ${err.message}`;
-        }
-        
-        setError(errorMessage);
-      } finally {
-        setIsProcessing(false);
+      if (!code) {
+        setError('No authorization code received from Google');
+        return;
       }
-    };
 
+      // Mark as processing to prevent duplicate calls
+      isProcessingRef.current = true;
+      setStatus('Verifying with server...');
+
+      // Parse state to get role if provided
+      let role = null;
+      if (state) {
+        try {
+          const stateData = JSON.parse(decodeURIComponent(state));
+          role = stateData.role;
+        } catch (e) {
+          console.warn('Could not parse state:', e);
+        }
+      }
+
+      // Send code to backend
+      const response = await axios.post(
+        `${process.env.REACT_APP_API_URL || 'https://cms-backend-fjdo.onrender.com/api'}/auth/google/callback`,
+        { code, role }
+      );
+
+      if (response.data.success) {
+        setStatus('Login successful! Redirecting...');
+        
+        // Store token and user data
+        localStorage.setItem('token', response.data.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        setUser(response.data.data.user);
+
+        // Redirect to dashboard
+        setTimeout(() => {
+          navigate(`/${response.data.data.user.role}/dashboard`);
+        }, 1000);
+      } else {
+        setError(response.data.message || 'Authentication failed');
+      }
+
+    } catch (err) {
+      console.error('Google callback error:', err);
+      console.error('Error details:', {
+        status: err.response?.status,
+        data: err.response?.data,
+        message: err.message
+      });
+      
+      // Provide more specific error messages
+      let errorMessage = 'An error occurred during authentication';
+      if (err.response?.data?.message) {
+        errorMessage = err.response.data.message;
+      } else if (err.response?.data?.error) {
+        errorMessage = err.response.data.error;
+      } else if (err.message) {
+        errorMessage = `Network error: ${err.message}`;
+      }
+      
+      setError(errorMessage);
+    } finally {
+      isProcessingRef.current = false;
+    }
+  }, [location.search, navigate, setUser]);
+
+  useEffect(() => {
     handleCallback();
-  }, [location.search]); // Only depend on search params to avoid unnecessary re-runs
+  }, [handleCallback]);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center px-4">

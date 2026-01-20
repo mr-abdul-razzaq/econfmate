@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { getSubmissionDetailsAuthor, uploadRevision, uploadPaper } from '../../utils/api';
 import Navbar from '../../components/Navbar';
@@ -22,11 +22,7 @@ export default function SubmissionDetails() {
     const [uploading, setUploading] = useState(false);
     const [uploadError, setUploadError] = useState(null);
 
-    useEffect(() => {
-        fetchSubmission();
-    }, [submissionId]);
-
-    const fetchSubmission = async () => {
+    const fetchSubmission = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -40,7 +36,11 @@ export default function SubmissionDetails() {
         } finally {
             setLoading(false);
         }
-    };
+    }, [submissionId]);
+
+    useEffect(() => {
+        fetchSubmission();
+    }, [fetchSubmission]);
 
     const handleRevisionSubmit = async (e) => {
         e.preventDefault();

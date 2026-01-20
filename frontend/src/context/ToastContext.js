@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useCallback } from 'react';
+import React, { createContext, useContext, useState, useCallback, useRef } from 'react';
 
 const ToastContext = createContext(null);
 
@@ -12,6 +12,16 @@ export const useToast = () => {
 
 export const ToastProvider = ({ children }) => {
     const [toasts, setToasts] = useState([]);
+    
+    // Use a ref to store the removeToast function to avoid circular dependency
+    const removeToastRef = useRef(null);
+
+    const removeToast = useCallback((id) => {
+        setToasts(prev => prev.filter(toast => toast.id !== id));
+    }, []);
+    
+    // Keep ref updated
+    removeToastRef.current = removeToast;
 
     const showToast = useCallback((message, type = 'info', duration = 4000) => {
         const id = Date.now() + Math.random();
@@ -22,15 +32,11 @@ export const ToastProvider = ({ children }) => {
         // Auto remove after duration
         if (duration > 0) {
             setTimeout(() => {
-                removeToast(id);
+                removeToastRef.current(id);
             }, duration);
         }
 
         return id;
-    }, []);
-
-    const removeToast = useCallback((id) => {
-        setToasts(prev => prev.filter(toast => toast.id !== id));
     }, []);
 
     // Convenience methods

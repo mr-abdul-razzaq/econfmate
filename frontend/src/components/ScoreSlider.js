@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 
 const ScoreSlider = ({
     value = 5,
@@ -11,6 +11,15 @@ const ScoreSlider = ({
     const [isDragging, setIsDragging] = useState(false);
     const [animatedValue, setAnimatedValue] = useState(value);
     const sliderRef = useRef(null);
+    
+    // Store latest values in refs to avoid stale closures
+    const valueRef = useRef(value);
+    const onChangeRef = useRef(onChange);
+    
+    useEffect(() => {
+        valueRef.current = value;
+        onChangeRef.current = onChange;
+    }, [value, onChange]);
 
     // Animate value changes
     useEffect(() => {
@@ -42,33 +51,7 @@ const ScoreSlider = ({
         return 'Excellent';
     };
 
-    const handleMouseDown = (e) => {
-        setIsDragging(true);
-        updateValue(e);
-    };
-
-    const handleMouseMove = (e) => {
-        if (isDragging) {
-            updateValue(e);
-        }
-    };
-
-    const handleMouseUp = () => {
-        setIsDragging(false);
-    };
-
-    const handleTouchStart = (e) => {
-        setIsDragging(true);
-        updateValue(e.touches[0]);
-    };
-
-    const handleTouchMove = (e) => {
-        if (isDragging) {
-            updateValue(e.touches[0]);
-        }
-    };
-
-    const updateValue = (e) => {
+    const updateValue = useCallback((e) => {
         if (!sliderRef.current) return;
 
         const rect = sliderRef.current.getBoundingClientRect();
@@ -76,12 +59,34 @@ const ScoreSlider = ({
         const percentage = Math.max(0, Math.min(1, x / rect.width));
         const newValue = Math.round(min + percentage * (max - min));
 
-        if (newValue !== value && onChange) {
-            onChange(newValue);
+        if (newValue !== valueRef.current && onChangeRef.current) {
+            onChangeRef.current(newValue);
         }
+    }, [min, max]);
+
+    const handleMouseDown = (e) => {
+        setIsDragging(true);
+        updateValue(e);
+    };
+
+    const handleTouchStart = (e) => {
+        setIsDragging(true);
+        updateValue(e.touches[0]);
     };
 
     useEffect(() => {
+        const handleMouseMove = (e) => {
+            updateValue(e);
+        };
+
+        const handleTouchMove = (e) => {
+            updateValue(e.touches[0]);
+        };
+
+        const handleMouseUp = () => {
+            setIsDragging(false);
+        };
+
         if (isDragging) {
             document.addEventListener('mousemove', handleMouseMove);
             document.addEventListener('mouseup', handleMouseUp);
@@ -94,7 +99,7 @@ const ScoreSlider = ({
             document.removeEventListener('touchmove', handleTouchMove);
             document.removeEventListener('touchend', handleMouseUp);
         };
-    }, [isDragging, handleMouseMove, handleTouchMove]);
+    }, [isDragging, updateValue]);
 
     const thumbPosition = ((animatedValue - min) / (max - min)) * 100;
     const colors = getColorForScore(animatedValue);

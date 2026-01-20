@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
@@ -24,11 +24,7 @@ const ManageAssignments = () => {
         clearExisting: false
     });
 
-    useEffect(() => {
-        fetchAssignments();
-    }, [conferenceId]);
-
-    const fetchAssignments = async () => {
+    const fetchAssignments = useCallback(async () => {
         try {
             setLoading(true);
             setError(null);
@@ -41,7 +37,11 @@ const ManageAssignments = () => {
         } finally {
             setLoading(false);
         }
-    };
+    }, [conferenceId]);
+
+    useEffect(() => {
+        fetchAssignments();
+    }, [fetchAssignments]);
 
     const handleAutoAssign = async () => {
         try {
