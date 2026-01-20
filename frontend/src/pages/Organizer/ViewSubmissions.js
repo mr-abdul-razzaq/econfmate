@@ -14,13 +14,15 @@ import {
   makeSubmissionDecision,
   getSubmissionReviewsOrganizer,
   scheduleSubmission,
-  approveSubmission
+  approveSubmission,
+  getConferenceDetailsOrganizer
 } from '../../utils/api';
 
 const ViewSubmissions = () => {
   const { id: conferenceId } = useParams();
   const navigate = useNavigate();
 
+  const [conference, setConference] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +54,8 @@ const ViewSubmissions = () => {
       setLoading(true);
       setError(null);
 
-      const [subsRes, tracksRes] = await Promise.all([
+      const [confRes, subsRes, tracksRes] = await Promise.all([
+        getConferenceDetailsOrganizer(conferenceId),
         getConferenceSubmissionsOrganizer(conferenceId, {
           trackId: trackFilter || undefined,
           status: statusFilter || undefined
@@ -60,6 +63,7 @@ const ViewSubmissions = () => {
         getTracks(conferenceId)
       ]);
 
+      setConference(confRes.data || confRes);
       setSubmissions(subsRes.data || subsRes || []);
       setTracks(tracksRes.data || tracksRes || []);
     } catch (err) {
@@ -211,6 +215,23 @@ const ViewSubmissions = () => {
         <div className="flex justify-between items-start mb-8">
           <div>
             <h1 className="text-3xl font-bold text-gray-900">Manage Submissions</h1>
+            {conference && (
+              <>
+                <p className="text-lg font-semibold text-gray-800 mt-2">{conference.name}</p>
+                <div className="flex items-center gap-4 mt-2 text-sm text-gray-600">
+                  {conference.startDate && conference.endDate && (
+                    <span className="flex items-center gap-1">
+                      📅 {new Date(conference.startDate).toLocaleDateString()} - {new Date(conference.endDate).toLocaleDateString()}
+                    </span>
+                  )}
+                  {conference.location && (
+                    <span className="flex items-center gap-1">
+                      📍 {conference.location}
+                    </span>
+                  )}
+                </div>
+              </>
+            )}
             <p className="text-gray-600 mt-1">Review and make decisions on paper submissions</p>
           </div>
           <div className="text-right">

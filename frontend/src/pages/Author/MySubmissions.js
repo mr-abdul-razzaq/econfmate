@@ -20,30 +20,20 @@ export default function MySubmissions() {
 
   // Separate submissions into primary author vs co-author
   const { mySubmissions, myPapers } = useMemo(() => {
-    const userEmail = user?.email?.toLowerCase();
-    const userId = user?.userId || user?.id;
-
     const primary = [];
     const coAuthored = [];
 
     submissions.forEach((submission) => {
-      const isPrimaryAuthor = submission.authorId?._id === userId || submission.authorId === userId;
-      
-      // Check if user is a co-author
-      const isCoAuthor = submission.coAuthors?.some((ca) => 
-        ca.email?.toLowerCase() === userEmail || ca.userId === userId
-      );
-
-      // Only show in "My Papers" if user is co-author but NOT primary author
-      if (isPrimaryAuthor) {
+      // Backend now provides isMainAuthor and isCoAuthor flags
+      if (submission.isMainAuthor || !submission.isCoAuthor) {
         primary.push(submission);
-      } else if (isCoAuthor && (submission.status === 'under_review' || submission.status === 'accepted' || submission.status === 'rejected' || submission.status === 'revision')) {
+      } else if (submission.isCoAuthor) {
         coAuthored.push(submission);
       }
     });
 
     return { mySubmissions: primary, myPapers: coAuthored };
-  }, [submissions, user]);
+  }, [submissions]);
 
   useEffect(() => {
     fetchSubmissions();

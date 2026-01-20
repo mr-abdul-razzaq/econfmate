@@ -155,6 +155,25 @@ export default function SubmissionDetails() {
 
                 {submission && (
                     <>
+                        {/* Co-Author Banner */}
+                        {submission.isCoAuthor && (
+                            <div className="mb-6 p-4 bg-blue-50 border-l-4 border-blue-500 rounded-lg animate-fade-in">
+                                <div className="flex items-center gap-2">
+                                    <span className="text-2xl">👥</span>
+                                    <div>
+                                        <p className="font-semibold text-blue-900">Co-Author View</p>
+                                        <p className="text-sm text-blue-700">
+                                            You are viewing this submission as a co-author. 
+                                            Primary author: <span className="font-medium">{submission.authorId?.name || 'Unknown'}</span>
+                                        </p>
+                                        <p className="text-xs text-blue-600 mt-1">
+                                            ℹ️ You have view-only access. Only the primary author can edit or resubmit this paper.
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {/* Header */}
                         <Card className="mb-6 card-hover">
                             <div className="flex justify-between items-start mb-4">
@@ -386,6 +405,58 @@ export default function SubmissionDetails() {
                             <p className="text-gray-700 whitespace-pre-wrap leading-relaxed">{submission.abstract}</p>
                         </Card>
 
+                        {/* Keywords */}
+                        {submission.keywords && submission.keywords.length > 0 && (
+                            <Card className="mb-6">
+                                <h2 className="text-lg font-bold text-gray-900 mb-3">Keywords</h2>
+                                <div className="flex flex-wrap gap-2">
+                                    {submission.keywords.map((keyword, index) => (
+                                        <span
+                                            key={index}
+                                            className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm font-medium"
+                                        >
+                                            {keyword}
+                                        </span>
+                                    ))}
+                                </div>
+                            </Card>
+                        )}
+
+                        {/* Co-Authors */}
+                        {submission.coAuthors && submission.coAuthors.length > 0 && (
+                            <Card className="mb-6">
+                                <h2 className="text-lg font-bold text-gray-900 mb-3">Co-Authors</h2>
+                                <div className="space-y-3">
+                                    {submission.coAuthors.map((coAuthor, index) => (
+                                        <div
+                                            key={index}
+                                            className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-200"
+                                        >
+                                            <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0">
+                                                <span className="text-blue-600 font-semibold">
+                                                    {coAuthor.name.charAt(0).toUpperCase()}
+                                                </span>
+                                            </div>
+                                            <div className="flex-1">
+                                                <p className="font-medium text-gray-900">{coAuthor.name}</p>
+                                                <p className="text-sm text-gray-600">{coAuthor.email}</p>
+                                                {coAuthor.orcid && (
+                                                    <p className="text-xs text-gray-500 mt-1">
+                                                        ORCID: {coAuthor.orcid}
+                                                    </p>
+                                                )}
+                                                {coAuthor.userId && (
+                                                    <span className="inline-block mt-1 text-xs px-2 py-0.5 bg-green-100 text-green-700 rounded">
+                                                        ✓ Registered User
+                                                    </span>
+                                                )}
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        )}
+
                         {/* Paper File */}
                         {submission.fileUrl && (
                             <Card className="mb-6">
@@ -409,7 +480,7 @@ export default function SubmissionDetails() {
                         )}
 
                         {/* Revision Request Banner */}
-                        {submission.status === 'revision' && (
+                        {submission.status === 'revision' && !submission.isCoAuthor && (
                             <Card className="mb-6 border-2 border-yellow-400 bg-yellow-50">
                                 <div className="flex items-start gap-4">
                                     <div className="text-3xl">📝</div>

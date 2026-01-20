@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const submissionSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   abstract: { type: String, required: true },
+  keywords: [{ type: String, trim: true }],
   authorId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   conferenceId: { type: mongoose.Schema.Types.ObjectId, ref: 'Conference', required: true },
   trackId: { type: mongoose.Schema.Types.ObjectId, ref: 'Track', required: true }, // NEW: track-scoped

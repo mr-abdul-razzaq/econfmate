@@ -28,8 +28,18 @@ export default function SubmitPaper() {
     title: '',
     abstract: '',
     trackId: trackId || '',
+    keywords: [],
+    coAuthors: [],
     file: null,
   });
+
+  // States for adding co-authors
+  const [newCoAuthor, setNewCoAuthor] = useState({
+    name: '',
+    email: '',
+    orcid: ''
+  });
+  const [keywordInput, setKeywordInput] = useState('');
 
   useEffect(() => {
     fetchInitialData();
@@ -94,6 +104,51 @@ export default function SubmitPaper() {
     }
   };
 
+  const handleAddKeyword = (e) => {
+    if (e.key === 'Enter' && keywordInput.trim()) {
+      e.preventDefault();
+      if (!form.keywords.includes(keywordInput.trim())) {
+        setForm({ ...form, keywords: [...form.keywords, keywordInput.trim()] });
+      }
+      setKeywordInput('');
+    }
+  };
+
+  const handleRemoveKeyword = (index) => {
+    setForm({
+      ...form,
+      keywords: form.keywords.filter((_, i) => i !== index)
+    });
+  };
+
+  const handleAddCoAuthor = (e) => {
+    e.preventDefault();
+    if (!newCoAuthor.name.trim() || !newCoAuthor.email.trim()) {
+      alert('Please provide at least name and email for the co-author');
+      return;
+    }
+
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newCoAuthor.email)) {
+      alert('Please provide a valid email address');
+      return;
+    }
+
+    setForm({
+      ...form,
+      coAuthors: [...form.coAuthors, { ...newCoAuthor }]
+    });
+    setNewCoAuthor({ name: '', email: '', orcid: '' });
+  };
+
+  const handleRemoveCoAuthor = (index) => {
+    setForm({
+      ...form,
+      coAuthors: form.coAuthors.filter((_, i) => i !== index)
+    });
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
@@ -134,6 +189,8 @@ export default function SubmitPaper() {
         title: form.title,
         abstract: form.abstract,
         trackId: form.trackId,
+        keywords: form.keywords,
+        coAuthors: form.coAuthors,
         fileUrl
       };
 
@@ -247,6 +304,108 @@ export default function SubmitPaper() {
               rows="6"
               required
             />
+          </div>
+
+          {/* Keywords */}
+          <div>
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              Keywords
+            </label>
+            <Input
+              type="text"
+              value={keywordInput}
+              onChange={(e) => setKeywordInput(e.target.value)}
+              onKeyDown={handleAddKeyword}
+              placeholder="Type a keyword and press Enter"
+            />
+            {form.keywords.length > 0 && (
+              <div className="flex flex-wrap gap-2 mt-2">
+                {form.keywords.map((keyword, index) => (
+                  <span
+                    key={index}
+                    className="inline-flex items-center gap-1 px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm"
+                  >
+                    {keyword}
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveKeyword(index)}
+                      className="text-blue-600 hover:text-blue-800 font-bold"
+                    >
+                      ×
+                    </button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Co-Authors */}
+          <div className="border-t pt-6">
+            <label className="block text-sm font-medium text-gray-900 mb-2">
+              Co-Authors
+            </label>
+            <p className="text-sm text-gray-600 mb-4">
+              Add co-authors for this paper. If they're registered on the platform, they'll be able to view this submission.
+            </p>
+
+            {/* Co-Author Input Form */}
+            <div className="bg-gray-50 p-4 rounded-lg mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                <Input
+                  type="text"
+                  placeholder="Full Name *"
+                  value={newCoAuthor.name}
+                  onChange={(e) => setNewCoAuthor({ ...newCoAuthor, name: e.target.value })}
+                />
+                <Input
+                  type="email"
+                  placeholder="Email *"
+                  value={newCoAuthor.email}
+                  onChange={(e) => setNewCoAuthor({ ...newCoAuthor, email: e.target.value })}
+                />
+                <Input
+                  type="text"
+                  placeholder="ORCID (optional)"
+                  value={newCoAuthor.orcid}
+                  onChange={(e) => setNewCoAuthor({ ...newCoAuthor, orcid: e.target.value })}
+                />
+              </div>
+              <Button
+                type="button"
+                onClick={handleAddCoAuthor}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                + Add Co-Author
+              </Button>
+            </div>
+
+            {/* Co-Authors List */}
+            {form.coAuthors.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-gray-700">Added Co-Authors ({form.coAuthors.length}):</p>
+                {form.coAuthors.map((coAuthor, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center justify-between bg-white border border-gray-200 rounded-lg p-3"
+                  >
+                    <div className="flex-1">
+                      <p className="font-medium text-gray-900">{coAuthor.name}</p>
+                      <p className="text-sm text-gray-600">{coAuthor.email}</p>
+                      {coAuthor.orcid && (
+                        <p className="text-xs text-gray-500">ORCID: {coAuthor.orcid}</p>
+                      )}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCoAuthor(index)}
+                      className="text-red-600 hover:text-red-800 px-3 py-1 rounded hover:bg-red-50"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* File Upload */}

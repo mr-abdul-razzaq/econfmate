@@ -6,6 +6,7 @@ const Conference = require('../models/Conference');
 const Track = require('../models/Track');
 const Submission = require('../models/Submission');
 const Review = require('../models/Review');
+const User = require('../models/User');
 
 // All author routes require authentication and author role
 router.use(auth, authorize('author'));
@@ -199,7 +200,11 @@ router.post(
     body('title').trim().notEmpty().withMessage('Title is required'),
     body('abstract').trim().notEmpty().withMessage('Abstract is required'),
     body('trackId').notEmpty().withMessage('trackId is required'),
-    body('fileUrl').trim().notEmpty().withMessage('fileUrl is required')
+    body('fileUrl').trim().notEmpty().withMessage('fileUrl is required'),
+    body('keywords').optional().isArray().withMessage('Keywords must be an array'),
+    body('coAuthors').optional().isArray().withMessage('Co-authors must be an array'),
+    body('coAuthors.*.name').optional().trim().notEmpty().withMessage('Co-author name is required'),
+    body('coAuthors.*.email').optional().isEmail().withMessage('Valid co-author email is required')
   ],
   async (req, res) => {
     try {
@@ -209,7 +214,7 @@ router.post(
       }
 
       const { conferenceId } = req.params;
-      const { title, abstract, trackId, fileUrl } = req.body;
+      const { title, abstract, trackId, fileUrl, keywords, coAuthors } = req.body;
 
       // Validate conference
       const conference = await Conference.findById(conferenceId).lean();
@@ -229,11 +234,27 @@ router.post(
         return res.status(400).json({ success: false, message: 'Submission deadline has passed for this track' });
       }
 
+      // Link co-authors to registered users if they exist
+      const processedCoAuthors = [];
+      if (coAuthors && Array.isArray(coAuthors)) {
+        for (const coAuthor of coAuthors) {
+          const userByEmail = await User.findOne({ email: coAuthor.email.toLowerCase() }).lean();
+          processedCoAuthors.push({
+            name: coAuthor.name,
+            email: coAuthor.email.toLowerCase(),
+            orcid: coAuthor.orcid || '',
+            userId: userByEmail?._id || null
+          });
+        }
+      }
+
       // Create submission (track-scoped)
       const submission = new Submission({
         title,
         abstract,
         fileUrl,
+        keywords: keywords || [],
+        coAuthors: processedCoAuthors,
         authorId: req.user.userId,
         conferenceId,
         trackId,
@@ -253,22 +274,40 @@ router.post(
 
 /**
  * @route   GET /api/author/submissions
- * @desc    Get submissions by current author (optional ?trackId=)
+ * @desc    Get submissions by current author or where user is co-author (optional ?trackId=)
  * @access  Private (Author)
  */
 router.get('/submissions', async (req, res) => {
   try {
-    const query = { authorId: req.user.userId };
+    const userId = req.user.userId;
+    
+    // Find submissions where user is either the main author OR a co-author
+    const query = {
+      $or: [
+        { authorId: userId },
+        { 'coAuthors.userId': userId }
+      ]
+    };
+    
     if (req.query.trackId) {
       query.trackId = req.query.trackId;
     }
+    
     const submissions = await Submission.find(query)
       .populate('conferenceId', 'name')
       .populate('trackId', 'name')
+      .populate('authorId', 'name email')
       .sort({ submittedAt: -1 })
       .lean();
 
-    res.json({ success: true, data: submissions });
+    // Mark which submissions the user is a co-author on (view-only)
+    const enrichedSubmissions = submissions.map(sub => ({
+      ...sub,
+      isCoAuthor: sub.authorId._id.toString() !== userId,
+      isMainAuthor: sub.authorId._id.toString() === userId
+    }));
+
+    res.json({ success: true, data: enrichedSubmissions });
   } catch (error) {
     console.error('Author get submissions error:', error);
     res.status(500).json({ success: false, message: 'Error fetching submissions', error: error.message });
@@ -278,18 +317,32 @@ router.get('/submissions', async (req, res) => {
 /**
  * @route   GET /api/author/submissions/:id
  * @desc    Get submission details with reviews (comments only, no scores/recommendations)
- * @access  Private (Author)
+ * @access  Private (Author or Co-Author)
  */
 router.get('/submissions/:id', async (req, res) => {
   try {
-    const submission = await Submission.findOne({ _id: req.params.id, authorId: req.user.userId })
+    const userId = req.user.userId;
+    
+    // Allow access if user is main author OR co-author
+    const submission = await Submission.findOne({
+      _id: req.params.id,
+      $or: [
+        { authorId: userId },
+        { 'coAuthors.userId': userId }
+      ]
+    })
       .populate('conferenceId', 'name')
       .populate('trackId', 'name description')
+      .populate('authorId', 'name email')
       .lean();
 
     if (!submission) {
-      return res.status(404).json({ success: false, message: 'Submission not found' });
+      return res.status(404).json({ success: false, message: 'Submission not found or you do not have access' });
     }
+
+    // Mark if user is co-author (view-only)
+    submission.isCoAuthor = submission.authorId._id.toString() !== userId;
+    submission.isMainAuthor = submission.authorId._id.toString() === userId;
 
     // Fetch reviews for this submission (only comments field visible to author)
     const reviews = await Review.find({ submissionId: submission._id })

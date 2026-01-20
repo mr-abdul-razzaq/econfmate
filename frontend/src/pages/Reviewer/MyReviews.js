@@ -33,10 +33,6 @@ const MyReviews = () => {
     fetchData();
   }, []);
 
-  useEffect(() => {
-    applyFilters();
-  }, [applyFilters]);
-
   const fetchData = async () => {
     try {
       setLoading(true);
@@ -55,7 +51,7 @@ const MyReviews = () => {
     }
   };
 
-  const applyFilters = () => {
+  const applyFilters = useCallback(() => {
     // Filter reviews
     let filtered = [...reviews];
     if (filters.search) {
@@ -97,7 +93,11 @@ const MyReviews = () => {
       filteredB = filteredB.filter(b => new Date(b.createdAt) <= to);
     }
     setFilteredBids(filteredB);
-  };
+  }, [reviews, bids, filters]);
+
+  useEffect(() => {
+    applyFilters();
+  }, [applyFilters]);
 
   const handleFilterChange = (e) => {
     const { name, value } = e.target;

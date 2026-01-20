@@ -56,11 +56,23 @@ const ManageBids = () => {
         try {
             setLoading(true);
             setError(null);
+            
+            // Fetch filtered bids for display
             const response = await getConferenceBids(conferenceId, { status: statusFilter !== 'all' ? statusFilter : undefined });
             setBids(response.data?.bids || []);
-            if (response.data?.stats) {
-                setStats(response.data.stats);
-            }
+            
+            // Fetch ALL bids for stats calculation (without filter)
+            const allBidsResponse = await getConferenceBids(conferenceId, {});
+            const allBids = allBidsResponse.data?.bids || [];
+            
+            // Calculate stats from all bids
+            const calculatedStats = { PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 };
+            allBids.forEach(bid => {
+                if (calculatedStats.hasOwnProperty(bid.status)) {
+                    calculatedStats[bid.status]++;
+                }
+            });
+            setStats(calculatedStats);
         } catch (err) {
             console.error('Error fetching bids:', err);
             setError(err.response?.data?.message || 'Failed to load bids');
@@ -72,8 +84,18 @@ const ManageBids = () => {
     const handleUpdateStatus = async (bidId, status, reason = '') => {
         try {
             setUpdating(true);
-            await updateBidStatus(bidId, status, reason);
+            const response = await updateBidStatus(bidId, status, reason);
+            
+            // Close the bids modal if it's open
+            if (showBidsModal) {
+                closeBidsModal();
+            }
+            
             await fetchBids();
+            
+            // Show success message
+            const statusText = status === 'APPROVED' ? 'approved' : 'rejected';
+            alert(response.message || `Bid ${statusText} successfully!`);
         } catch (err) {
             console.error('Error updating bid:', err);
             alert(err.response?.data?.message || 'Failed to update bid');
@@ -99,9 +121,19 @@ const ManageBids = () => {
 
         try {
             setUpdating(true);
-            await bulkUpdateBids(selectedBids, status, '');
+            const response = await bulkUpdateBids(selectedBids, status, '');
             setSelectedBids([]);
+            
+            // Close the bids modal if it's open
+            if (showBidsModal) {
+                closeBidsModal();
+            }
+            
             await fetchBids();
+            
+            // Show success message
+            const statusText = status === 'APPROVED' ? 'approved' : 'rejected';
+            alert(response.message || `${selectedBids.length} bid(s) ${statusText} successfully!`);
         } catch (err) {
             console.error('Error bulk updating bids:', err);
             alert(err.response?.data?.message || 'Failed to update bids');
@@ -127,18 +159,29 @@ const ManageBids = () => {
 
         try {
             setUpdating(true);
+            let response;
             if (rejectingBid) {
                 // Single bid rejection
-                await updateBidStatus(rejectingBid, 'REJECTED', rejectionReason.trim());
+                response = await updateBidStatus(rejectingBid, 'REJECTED', rejectionReason.trim());
             } else {
                 // Bulk rejection
-                await bulkUpdateBids(selectedBids, 'REJECTED', rejectionReason.trim());
+                response = await bulkUpdateBids(selectedBids, 'REJECTED', rejectionReason.trim());
                 setSelectedBids([]);
             }
             setShowRejectModal(false);
             setRejectingBid(null);
             setRejectionReason('');
+            
+            // Close the bids modal if it's open
+            if (showBidsModal) {
+                closeBidsModal();
+            }
+            
             await fetchBids();
+            
+            // Show success message
+            const countText = rejectingBid ? '1 bid' : `${selectedBids.length} bid(s)`;
+            alert(response.message || `${countText} rejected successfully!`);
         } catch (err) {
             console.error('Error rejecting bid(s):', err);
             alert(err.response?.data?.message || 'Failed to reject bid(s)');
