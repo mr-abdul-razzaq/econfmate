@@ -7,6 +7,7 @@ const Track = require('../models/Track');
 const Submission = require('../models/Submission');
 const Review = require('../models/Review');
 const User = require('../models/User');
+const { sendEmail, templates } = require('../utils/emailService');
 
 // All author routes require authentication and author role
 router.use(auth, authorize('author'));
@@ -263,6 +264,36 @@ router.post(
 
       await submission.save();
 
+      // Populate track name for email
+      await submission.populate('trackId', 'name');
+
+      // Send confirmation email to author (CC co-authors)
+      const author = await User.findById(req.user.userId).lean();
+      if (author?.email) {
+        // Get co-author emails
+        console.log('📝 Co-authors in submission:', submission.coAuthors);
+        const coAuthorEmails = submission.coAuthors
+          ?.map(ca => ca.email)
+          .filter(email => email && email !== author.email)
+          .join(', ');
+        console.log('📧 Co-author emails for CC:', coAuthorEmails);
+        
+        sendEmail(
+          author.email,
+          templates.submissionConfirmation(author, submission, conference),
+          coAuthorEmails || null
+        ).catch(err => console.error('Email error:', err));
+      }
+
+      // Send notification to organizer
+      const organizer = await User.findById(conference.organizerId).lean();
+      if (organizer?.email) {
+        sendEmail(
+          organizer.email,
+          templates.newSubmissionAlert(organizer, submission, conference, author)
+        ).catch(err => console.error('Email error:', err));
+      }
+
       res.status(201).json({ success: true, message: 'Submission created', data: submission });
 
     } catch (error) {
@@ -411,6 +442,24 @@ router.put(
       submission.revisionCount = (submission.revisionCount || 0) + 1;
 
       await submission.save();
+
+      // Send notification to assigned reviewers about revised paper
+      if (submission.assignedReviewers && submission.assignedReviewers.length > 0) {
+        const [conference, populatedSubmission] = await Promise.all([
+          Conference.findById(submission.conferenceId).lean(),
+          Submission.findById(submission._id).populate('trackId', 'name')
+        ]);
+
+        for (const reviewerId of submission.assignedReviewers) {
+          const reviewer = await User.findById(reviewerId).lean();
+          if (reviewer?.email) {
+            sendEmail(
+              reviewer.email,
+              templates.revisedPaperSubmitted(reviewer, populatedSubmission, conference)
+            ).catch(err => console.error('Email error:', err));
+          }
+        }
+      }
 
       res.json({
         success: true,

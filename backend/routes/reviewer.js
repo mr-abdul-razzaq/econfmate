@@ -7,6 +7,8 @@ const Review = require('../models/Review');
 const Track = require('../models/Track');
 const Bid = require('../models/Bid');
 const Conference = require('../models/Conference');
+const User = require('../models/User');
+const { sendEmail, templates } = require('../utils/emailService');
 
 // All reviewer routes require authentication and reviewer role
 router.use(auth, authorize('reviewer'));
@@ -384,6 +386,52 @@ router.post(
           status: 'revision',
           'decision.feedback': req.body.comments || 'Revision requested by reviewer'
         });
+
+        // Send revision request email to author
+        const [author, conference, populatedSubmission] = await Promise.all([
+          User.findById(submission.authorId).lean(),
+          Conference.findById(track.conferenceId).lean(),
+          Submission.findById(submission._id).populate('trackId', 'name')
+        ]);
+
+        if (author?.email) {
+          // Get co-author emails
+          const coAuthorEmails = populatedSubmission.coAuthors
+            ?.map(ca => ca.email)
+            .filter(email => email && email !== author.email)
+            .join(', ');
+          
+          sendEmail(
+            author.email,
+            templates.revisionRequested(author, populatedSubmission, conference, req.body.comments),
+            coAuthorEmails || null
+          ).catch(err => console.error('Email error:', err));
+        }
+      }
+
+      // Check if all assigned reviewers have completed their reviews
+      const totalAssignedReviewers = (submission.assignedReviewers || []).length;
+      if (totalAssignedReviewers > 0) {
+        const completedReviews = await Review.countDocuments({
+          submissionId: submission._id,
+          status: { $in: ['submitted', 'pending_revision'] }
+        });
+
+        // If all reviews are complete, notify organizer
+        if (completedReviews >= totalAssignedReviewers) {
+          const [conference, organizer, populatedSubmission] = await Promise.all([
+            Conference.findById(track.conferenceId).lean(),
+            Conference.findById(track.conferenceId).then(c => User.findById(c.organizerId).lean()),
+            Submission.findById(submission._id).populate('trackId', 'name')
+          ]);
+
+          if (organizer?.email) {
+            sendEmail(
+              organizer.email,
+              templates.allReviewsComplete(organizer, populatedSubmission, conference, completedReviews)
+            ).catch(err => console.error('Email error:', err));
+          }
+        }
       }
 
       res.status(201).json({ success: true, message: 'Review submitted', data: review });

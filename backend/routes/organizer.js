@@ -9,6 +9,8 @@ const Review = require('../models/Review');
 const Certificate = require('../models/Certificate');
 const Registration = require('../models/Registration');
 const Track = require('../models/Track');
+const User = require('../models/User');
+const { sendEmail, templates } = require('../utils/emailService');
 
 // All organizer routes require authentication and organizer role
 router.use(auth, authorize('organizer'));
@@ -406,7 +408,58 @@ router.patch('/submission/:submissionId/decision', [
       'decision.feedback': req.body.feedback || ''
     };
 
-    const updated = await Submission.findByIdAndUpdate(req.params.submissionId, update, { new: true });
+    const updated = await Submission.findByIdAndUpdate(req.params.submissionId, update, { new: true })
+      .populate('authorId', 'name email')
+      .populate('trackId', 'name');
+
+    // Send emails based on decision
+    const decision = req.body.decision;
+    
+    if (decision === 'accepted' || decision === 'rejected') {
+      // Send to author (CC co-authors)
+      if (updated.authorId?.email) {
+        const emailTemplate = decision === 'accepted' 
+          ? templates.paperAccepted(updated.authorId, updated, conference)
+          : templates.paperRejected(updated.authorId, updated, conference, req.body.feedback);
+        
+        // Get co-author emails
+        const coAuthorEmails = updated.coAuthors
+          ?.map(ca => ca.email)
+          .filter(email => email && email !== updated.authorId.email)
+          .join(', ');
+        
+        sendEmail(updated.authorId.email, emailTemplate, coAuthorEmails || null)
+          .catch(err => console.error('Email error:', err));
+      }
+
+      // Send to all assigned reviewers
+      if (updated.assignedReviewers && updated.assignedReviewers.length > 0) {
+        for (const reviewerId of updated.assignedReviewers) {
+          const reviewer = await User.findById(reviewerId).lean();
+          if (reviewer?.email) {
+            sendEmail(
+              reviewer.email,
+              templates.finalDecisionToReviewers(reviewer, updated, conference, decision)
+            ).catch(err => console.error('Email error:', err));
+          }
+        }
+      }
+    } else if (decision === 'revision') {
+      // Send revision request to author (CC co-authors)
+      if (updated.authorId?.email) {
+        // Get co-author emails
+        const coAuthorEmails = updated.coAuthors
+          ?.map(ca => ca.email)
+          .filter(email => email && email !== updated.authorId.email)
+          .join(', ');
+        
+        sendEmail(
+          updated.authorId.email,
+          templates.revisionRequested(updated.authorId, updated, conference, req.body.feedback),
+          coAuthorEmails || null
+        ).catch(err => console.error('Email error:', err));
+      }
+    }
 
     res.json({ success: true, message: 'Decision recorded', data: updated });
 
@@ -441,6 +494,20 @@ router.put('/submissions/:id/approve', async (req, res) => {
     submission.approvedAt = new Date();
     submission.status = 'under_review'; // Move to under_review after organizer approval
     await submission.save();
+
+    // Send email to author
+    const [author, populatedSubmission] = await Promise.all([
+      User.findById(submission.authorId).lean(),
+      Submission.findById(submission._id).populate('trackId', 'name')
+    ]);
+
+    if (author?.email) {
+      const conference = await Conference.findById(track.conferenceId).lean();
+      sendEmail(
+        author.email,
+        templates.paperApprovedForReview(author, populatedSubmission, conference)
+      ).catch(err => console.error('Email error:', err));
+    }
 
     res.json({ success: true, message: 'Submission approved', data: submission });
 
@@ -1019,6 +1086,25 @@ router.patch('/bids/:id', [
           assignedAt: new Date()
         });
         await assignment.save();
+
+        // Add reviewer to submission's assignedReviewers array
+        await Submission.findByIdAndUpdate(
+          bid.submissionId,
+          { $addToSet: { assignedReviewers: bid.reviewerId } }
+        );
+
+        // Send email to reviewer
+        const [reviewer, submission] = await Promise.all([
+          User.findById(bid.reviewerId).lean(),
+          Submission.findById(bid.submissionId).populate('trackId', 'name')
+        ]);
+
+        if (reviewer?.email) {
+          sendEmail(
+            reviewer.email,
+            templates.reviewerAssigned(reviewer, submission, conference)
+          ).catch(err => console.error('Email error:', err));
+        }
       }
     }
 
@@ -1119,7 +1205,6 @@ router.post('/bids/bulk-update', [
 // ============ ASSIGNMENT MANAGEMENT ROUTES ============
 
 const Assignment = require('../models/Assignment');
-const User = require('../models/User');
 
 /**
  * Scoring function for reviewer-paper matching
