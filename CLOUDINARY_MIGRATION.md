@@ -32,9 +32,9 @@ const storage = new CloudinaryStorage({
 #### 2. Environment Variables in `/backend/.env`
 Already configured with your Cloudinary credentials:
 ```env
-CLOUDINARY_CLOUD_NAME=do1chc58i
-CLOUDINARY_API_SECRET=UdznDOYbjdE3QtpGyrFoiX_kIjE
-CLOUDINARY_API_KEY=174867987941712
+CLOUDINARY_CLOUD_NAME=CLOUDINARY_CLOUD_NAME
+CLOUDINARY_API_SECRET=CLOUDINARY_API_SECRET_key
+CLOUDINARY_API_KEY=CLOUDINARY_API_KEY
 ```
 
 ### Frontend Changes
