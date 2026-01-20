@@ -323,7 +323,7 @@ const sendEmail = async (to, template, cc = null) => {
     
     // Prepare email data in Resend format
     const emailData = {
-      from: process.env.EMAIL_FROM || 'CMS System <noreply@cms-system.com>',
+      from: process.env.EMAIL_FROM || 'onboarding@resend.dev',
       to: Array.isArray(to) ? to : [to],
       subject: template.subject,
       html: template.html,
