@@ -2,25 +2,30 @@ const express = require('express');
 const router = express.Router();
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
 const { auth } = require('../middleware/auth');
+const cloudinary = require('cloudinary').v2;
+const { CloudinaryStorage } = require('multer-storage-cloudinary');
 
-// Ensure uploads directory exists
-const uploadsDir = path.join(__dirname, '..', 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-}
+// Configure Cloudinary
+cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key: process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET
+});
 
-// Configure multer for file upload
-const storage = multer.diskStorage({
-    destination: (req, file, cb) => {
-        cb(null, uploadsDir);
-    },
-    filename: (req, file, cb) => {
-        // Create unique filename with timestamp
-        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-        const ext = path.extname(file.originalname);
-        cb(null, `paper-${uniqueSuffix}${ext}`);
+// Configure Cloudinary storage for multer
+const storage = new CloudinaryStorage({
+    cloudinary: cloudinary,
+    params: {
+        folder: 'conference-papers', // Folder name in Cloudinary
+        allowed_formats: ['pdf', 'doc', 'docx'],
+        resource_type: 'raw', // For non-image files (PDFs, docs, etc.)
+        public_id: (req, file) => {
+            // Create unique filename with timestamp
+            const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+            const ext = path.extname(file.originalname);
+            return `paper-${uniqueSuffix}${ext}`;
+        }
     }
 });
 
@@ -61,8 +66,9 @@ router.post('/paper', upload.single('file'), (req, res) => {
             });
         }
 
-        // Return the URL that can be used to access the file
-        const fileUrl = `/uploads/${req.file.filename}`;
+        // Cloudinary returns the file URL in req.file.path
+        // This is a publicly accessible URL that persists permanently
+        const fileUrl = req.file.path;
 
         res.json({
             success: true,
@@ -70,9 +76,10 @@ router.post('/paper', upload.single('file'), (req, res) => {
             data: {
                 filename: req.file.filename,
                 originalname: req.file.originalname,
-                fileUrl,
+                fileUrl, // This is now the Cloudinary URL
                 size: req.file.size,
-                mimetype: req.file.mimetype
+                mimetype: req.file.mimetype,
+                cloudinaryId: req.file.filename // Store this if you need to delete later
             }
         });
     } catch (error) {

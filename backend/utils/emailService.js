@@ -1,31 +1,24 @@
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-// Create reusable transporter
-const createTransporter = () => {
-  // For development, use ethereal email (fake SMTP)
-  // In production, use real SMTP credentials from .env
-  if (process.env.EMAIL_HOST && process.env.EMAIL_USER) {
-    return nodemailer.createTransport({
-      host: process.env.EMAIL_HOST,
-      port: process.env.EMAIL_PORT || 587,
-      secure: process.env.EMAIL_SECURE === 'true',
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASSWORD
-      }
-    });
+// Initialize Resend client
+const createResendClient = () => {
+  // For production, use Resend API key from .env
+  if (process.env.RESEND_API_KEY) {
+    return new Resend(process.env.RESEND_API_KEY);
   }
   
-  // Development fallback - logs to console
+  // Development fallback - logs to console (maintains existing behavior)
   return {
-    sendMail: async (mailOptions) => {
-      console.log('📧 EMAIL (Development Mode):', {
-        to: mailOptions.to,
-        cc: mailOptions.cc || 'None',
-        subject: mailOptions.subject,
-        text: mailOptions.text?.substring(0, 200) + '...'
-      });
-      return { messageId: 'dev-' + Date.now() };
+    emails: {
+      send: async (emailData) => {
+        console.log('📧 EMAIL (Development Mode):', {
+          to: emailData.to,
+          cc: emailData.cc || 'None',
+          subject: emailData.subject,
+          text: emailData.text?.substring(0, 200) + '...'
+        });
+        return { data: { id: 'dev-' + Date.now() }, error: null };
+      }
     }
   };
 };
@@ -323,27 +316,41 @@ const templates = {
   })
 };
 
-// Send email function
+// Send email function using Resend SDK
 const sendEmail = async (to, template, cc = null) => {
   try {
-    const transporter = createTransporter();
+    const resend = createResendClient();
     
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || '"CMS System" <noreply@cms-system.com>',
-      to,
+    // Prepare email data in Resend format
+    const emailData = {
+      from: process.env.EMAIL_FROM || 'CMS System <noreply@cms-system.com>',
+      to: Array.isArray(to) ? to : [to],
       subject: template.subject,
       html: template.html,
       text: template.text
     };
 
-    // Add CC if provided (for co-authors)
+    // Add CC if provided (for co-authors) - Resend accepts array format
     if (cc) {
-      mailOptions.cc = cc;
+      emailData.cc = Array.isArray(cc) ? cc : [cc];
     }
 
-    const result = await transporter.sendMail(mailOptions);
-    console.log('✅ Email sent:', { to, cc, subject: template.subject, messageId: result.messageId });
-    return result;
+    // Send via Resend API
+    const { data, error } = await resend.emails.send(emailData);
+    
+    if (error) {
+      throw new Error(error.message || 'Resend API error');
+    }
+
+    console.log('✅ Email sent:', { 
+      to: emailData.to, 
+      cc: emailData.cc || 'None', 
+      subject: template.subject, 
+      messageId: data.id 
+    });
+    
+    // Return in format compatible with existing code (maintains behavior)
+    return { messageId: data.id, ...data };
   } catch (error) {
     console.error('❌ Email error:', error);
     throw error;
