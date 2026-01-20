@@ -13,10 +13,14 @@ const GoogleCallback = () => {
   const isProcessingRef = useRef(false);
 
   const handleCallback = useCallback(async () => {
-    // Prevent duplicate API calls
+    // Prevent duplicate API calls - check and set atomically
     if (isProcessingRef.current) {
+      console.log('Google callback already processing, skipping...');
       return;
     }
+    
+    // Mark as processing IMMEDIATELY to prevent race conditions
+    isProcessingRef.current = true;
 
     try {
       // Extract authorization code from URL
@@ -35,8 +39,6 @@ const GoogleCallback = () => {
         return;
       }
 
-      // Mark as processing to prevent duplicate calls
-      isProcessingRef.current = true;
       setStatus('Verifying with server...');
 
       // Parse state to get role if provided
@@ -91,14 +93,15 @@ const GoogleCallback = () => {
       }
       
       setError(errorMessage);
-    } finally {
-      isProcessingRef.current = false;
     }
-  }, [location.search, navigate, updateUser]);
+    // Note: Don't reset isProcessingRef to allow only one execution
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     handleCallback();
-  }, [handleCallback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary-50 to-primary-100 flex items-center justify-center px-4">
