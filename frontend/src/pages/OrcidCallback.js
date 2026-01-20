@@ -7,7 +7,7 @@ import Loading from '../components/Loading';
 const OrcidCallback = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { setAuthData } = useAuth();
+  const { updateUser } = useAuth();
   const [error, setError] = useState('');
   const [status, setStatus] = useState('Authenticating with ORCID...');
   const isProcessingRef = useRef(false);
@@ -61,8 +61,10 @@ const OrcidCallback = () => {
       if (response.data.success) {
         setStatus('Login successful! Redirecting...');
         
-        // Set auth data (token + user) and configure axios headers
-        setAuthData(response.data.data.token, response.data.data.user);
+        // Store token and user data
+        localStorage.setItem('token', response.data.data.token);
+        localStorage.setItem('user', JSON.stringify(response.data.data.user));
+        updateUser(response.data.data.user);
 
         // Redirect to dashboard
         setTimeout(() => {
