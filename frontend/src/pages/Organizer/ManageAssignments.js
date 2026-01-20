@@ -1,15 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 import { getConferenceAssignments, runAutoAssign, updateAssignment, deleteAssignment } from '../../utils/api';
 
 const ManageAssignments = () => {
     const { conferenceId } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [assignments, setAssignments] = useState([]);
     const [stats, setStats] = useState(null);
     const [loading, setLoading] = useState(true);
@@ -45,12 +47,12 @@ const ManageAssignments = () => {
         try {
             setRunning(true);
             const result = await runAutoAssign(conferenceId, config);
-            alert(`Auto-assignment completed!\n\nAssigned: ${result.data.assigned}\nPapers fully covered: ${result.data.papersFullyAssigned}/${result.data.totalSubmissions}\nReviewers used: ${result.data.reviewersUsed}`);
+            toast.success(`Auto-assignment completed! Assigned: ${result.data.assigned}, Papers covered: ${result.data.papersFullyAssigned}/${result.data.totalSubmissions}, Reviewers: ${result.data.reviewersUsed}`);
             setShowConfig(false);
             await fetchAssignments();
         } catch (err) {
             console.error('Auto-assign error:', err);
-            alert(err.response?.data?.message || 'Failed to run auto-assignment');
+            toast.error(err.response?.data?.message || 'Failed to run auto-assignment');
         } finally {
             setRunning(false);
         }
@@ -62,7 +64,7 @@ const ManageAssignments = () => {
             await fetchAssignments();
         } catch (err) {
             console.error('Error toggling lock:', err);
-            alert(err.response?.data?.message || 'Failed to update assignment');
+            toast.error(err.response?.data?.message || 'Failed to update assignment');
         }
     };
 
@@ -74,7 +76,7 @@ const ManageAssignments = () => {
             await fetchAssignments();
         } catch (err) {
             console.error('Error deleting assignment:', err);
-            alert(err.response?.data?.message || 'Failed to delete assignment');
+            toast.error(err.response?.data?.message || 'Failed to delete assignment');
         }
     };
 
@@ -91,6 +93,23 @@ const ManageAssignments = () => {
             ? <Badge variant="info">Auto</Badge>
             : <Badge variant="primary">Manual</Badge>;
     };
+
+    // Group assignments by paper (submission)
+    const groupedAssignments = useMemo(() => {
+        const groups = {};
+        assignments.forEach(assignment => {
+            const paperId = assignment.submissionId?._id || 'unknown';
+            if (!groups[paperId]) {
+                groups[paperId] = {
+                    paper: assignment.submissionId,
+                    track: assignment.trackId,
+                    reviewers: []
+                };
+            }
+            groups[paperId].reviewers.push(assignment);
+        });
+        return Object.values(groups);
+    }, [assignments]);
 
     if (loading && assignments.length === 0) {
         return (
@@ -226,7 +245,7 @@ const ManageAssignments = () => {
                     </div>
                 )}
 
-                {/* Assignments List */}
+                {/* Assignments List - Paper-wise Grouped View */}
                 {assignments.length === 0 ? (
                     <Card className="text-center py-12">
                         <div className="text-6xl mb-4">📝</div>
@@ -239,65 +258,97 @@ const ManageAssignments = () => {
                         </Button>
                     </Card>
                 ) : (
-                    <div className="overflow-x-auto">
-                        <table className="w-full border-collapse">
-                            <thead>
-                                <tr className="bg-gray-50 text-left text-sm text-gray-600">
-                                    <th className="px-4 py-3 font-medium">Paper</th>
-                                    <th className="px-4 py-3 font-medium">Reviewer</th>
-                                    <th className="px-4 py-3 font-medium">Score</th>
-                                    <th className="px-4 py-3 font-medium">Source</th>
-                                    <th className="px-4 py-3 font-medium">Assigned</th>
-                                    <th className="px-4 py-3 font-medium">Actions</th>
-                                </tr>
-                            </thead>
-                            <tbody className="divide-y divide-gray-200">
-                                {assignments.map((assignment) => (
-                                    <tr key={assignment._id} className="hover:bg-gray-50">
-                                        <td className="px-4 py-3">
-                                            <div className="max-w-xs truncate font-medium text-gray-900">
-                                                {assignment.submissionId?.title || 'Unknown'}
+                    <div className="space-y-6">
+                        {groupedAssignments.map((group) => (
+                            <Card key={group.paper?._id || 'unknown'} className="overflow-hidden">
+                                {/* Paper Header */}
+                                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 -mx-4 -mt-4 px-4 py-4 mb-4 border-b border-blue-100">
+                                    <div className="flex items-start justify-between">
+                                        <div className="flex-1">
+                                            <h3 className="font-bold text-lg text-gray-900 mb-1">
+                                                <span className="text-gray-600 font-medium">Paper Title:</span> {group.paper?.title || 'Untitled Paper'}
+                                            </h3>
+                                            <div className="flex items-center gap-3 text-sm text-gray-600">
+                                                {group.track?.name && (
+                                                    <span className="flex items-center gap-1">
+                                                        <Badge variant="info">{group.track.name}</Badge>
+                                                    </span>
+                                                )}
+                                                <span className="flex items-center gap-1">
+                                                    <span className="text-blue-600 font-semibold">{group.reviewers.length}</span> Reviewer{group.reviewers.length !== 1 ? 's' : ''} Assigned
+                                                </span>
                                             </div>
-                                            <div className="text-xs text-gray-500">
-                                                {assignment.trackId?.name || 'No track'}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Reviewers List */}
+                                <div className="space-y-3">
+                                    <p className="text-sm font-medium text-gray-700 mb-2">Assigned Reviewers:</p>
+                                    {group.reviewers.map((assignment) => (
+                                        <div
+                                            key={assignment._id}
+                                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-200 hover:bg-gray-100 transition-colors"
+                                        >
+                                            <div className="flex items-center gap-4 flex-1">
+                                                {/* Reviewer Info */}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="font-medium text-gray-900">
+                                                        {assignment.reviewerId?.name || 'Unknown Reviewer'}
+                                                    </div>
+                                                    <div className="text-sm text-gray-500 truncate">
+                                                        {assignment.reviewerId?.email || 'No email'}
+                                                    </div>
+                                                </div>
+
+                                                {/* Match Score */}
+                                                <div className="text-center px-3">
+                                                    <div className={`text-lg font-bold ${assignment.matchScore >= 80 ? 'text-green-600' :
+                                                            assignment.matchScore >= 50 ? 'text-yellow-600' : 'text-red-600'
+                                                        }`}>
+                                                        {assignment.matchScore}%
+                                                    </div>
+                                                    <div className="text-xs text-gray-500">Match</div>
+                                                </div>
+
+                                                {/* Source Badge */}
+                                                <div className="text-center">
+                                                    {getSourceBadge(assignment.source)}
+                                                </div>
+
+                                                {/* Assigned Date */}
+                                                <div className="text-center hidden md:block">
+                                                    <div className="text-sm text-gray-600">{formatDate(assignment.assignedAt)}</div>
+                                                    <div className="text-xs text-gray-500">Assigned</div>
+                                                </div>
                                             </div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="text-gray-900">{assignment.reviewerId?.name || 'Unknown'}</div>
-                                            <div className="text-xs text-gray-500">{assignment.reviewerId?.email}</div>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <span className="font-semibold text-gray-900">{assignment.matchScore}%</span>
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            {getSourceBadge(assignment.source)}
-                                        </td>
-                                        <td className="px-4 py-3 text-sm text-gray-500">
-                                            {formatDate(assignment.assignedAt)}
-                                        </td>
-                                        <td className="px-4 py-3">
-                                            <div className="flex items-center gap-2">
+
+                                            {/* Actions */}
+                                            <div className="flex items-center gap-2 ml-4">
                                                 <button
                                                     onClick={() => handleToggleLock(assignment._id, assignment.locked)}
-                                                    className={`text-sm ${assignment.locked ? 'text-yellow-600' : 'text-gray-400'} hover:text-yellow-700`}
+                                                    className={`p-2 rounded-lg transition-colors ${assignment.locked
+                                                            ? 'text-yellow-600 bg-yellow-50 hover:bg-yellow-100'
+                                                            : 'text-gray-400 hover:bg-gray-200'
+                                                        }`}
                                                     title={assignment.locked ? 'Unlock assignment' : 'Lock assignment'}
                                                 >
                                                     {assignment.locked ? '🔒' : '🔓'}
                                                 </button>
                                                 <button
                                                     onClick={() => handleDelete(assignment._id)}
-                                                    className="text-red-500 hover:text-red-700 text-sm"
+                                                    className="p-2 rounded-lg text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
                                                     disabled={assignment.locked}
                                                     title="Delete assignment"
                                                 >
                                                     🗑️
                                                 </button>
                                             </div>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        ))}
                     </div>
                 )}
             </div>

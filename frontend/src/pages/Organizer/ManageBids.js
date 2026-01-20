@@ -5,11 +5,13 @@ import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 import { getConferenceBids, updateBidStatus, bulkUpdateBids } from '../../utils/api';
 
 const ManageBids = () => {
     const { conferenceId } = useParams();
     const navigate = useNavigate();
+    const toast = useToast();
     const [bids, setBids] = useState([]);
     const [stats, setStats] = useState({ PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 });
     const [loading, setLoading] = useState(true);
@@ -38,7 +40,7 @@ const ManageBids = () => {
         bids.forEach(bid => {
             const paperId = bid.submissionId?._id;
             if (!paperId) return;
-            
+
             if (!grouped[paperId]) {
                 grouped[paperId] = {
                     paper: bid.submissionId,
@@ -56,15 +58,15 @@ const ManageBids = () => {
         try {
             setLoading(true);
             setError(null);
-            
+
             // Fetch filtered bids for display
             const response = await getConferenceBids(conferenceId, { status: statusFilter !== 'all' ? statusFilter : undefined });
             setBids(response.data?.bids || []);
-            
+
             // Fetch ALL bids for stats calculation (without filter)
             const allBidsResponse = await getConferenceBids(conferenceId, {});
             const allBids = allBidsResponse.data?.bids || [];
-            
+
             // Calculate stats from all bids
             const calculatedStats = { PENDING: 0, APPROVED: 0, REJECTED: 0, WITHDRAWN: 0 };
             allBids.forEach(bid => {
@@ -85,20 +87,20 @@ const ManageBids = () => {
         try {
             setUpdating(true);
             const response = await updateBidStatus(bidId, status, reason);
-            
+
             // Close the bids modal if it's open
             if (showBidsModal) {
                 closeBidsModal();
             }
-            
+
             await fetchBids();
-            
+
             // Show success message
             const statusText = status === 'APPROVED' ? 'approved' : 'rejected';
-            alert(response.message || `Bid ${statusText} successfully!`);
+            toast.success(response.message || `Bid ${statusText} successfully!`);
         } catch (err) {
             console.error('Error updating bid:', err);
-            alert(err.response?.data?.message || 'Failed to update bid');
+            toast.error(err.response?.data?.message || 'Failed to update bid');
         } finally {
             setUpdating(false);
         }
@@ -106,7 +108,7 @@ const ManageBids = () => {
 
     const handleBulkUpdate = async (status) => {
         if (selectedBids.length === 0) {
-            alert('Please select at least one bid');
+            toast.warning('Please select at least one bid');
             return;
         }
 
@@ -123,20 +125,20 @@ const ManageBids = () => {
             setUpdating(true);
             const response = await bulkUpdateBids(selectedBids, status, '');
             setSelectedBids([]);
-            
+
             // Close the bids modal if it's open
             if (showBidsModal) {
                 closeBidsModal();
             }
-            
+
             await fetchBids();
-            
+
             // Show success message
             const statusText = status === 'APPROVED' ? 'approved' : 'rejected';
-            alert(response.message || `${selectedBids.length} bid(s) ${statusText} successfully!`);
+            toast.success(response.message || `${selectedBids.length} bid(s) ${statusText} successfully!`);
         } catch (err) {
             console.error('Error bulk updating bids:', err);
-            alert(err.response?.data?.message || 'Failed to update bids');
+            toast.error(err.response?.data?.message || 'Failed to update bids');
         } finally {
             setUpdating(false);
         }
@@ -171,20 +173,20 @@ const ManageBids = () => {
             setShowRejectModal(false);
             setRejectingBid(null);
             setRejectionReason('');
-            
+
             // Close the bids modal if it's open
             if (showBidsModal) {
                 closeBidsModal();
             }
-            
+
             await fetchBids();
-            
+
             // Show success message
             const countText = rejectingBid ? '1 bid' : `${selectedBids.length} bid(s)`;
-            alert(response.message || `${countText} rejected successfully!`);
+            toast.success(response.message || `${countText} rejected successfully!`);
         } catch (err) {
             console.error('Error rejecting bid(s):', err);
-            alert(err.response?.data?.message || 'Failed to reject bid(s)');
+            toast.error(err.response?.data?.message || 'Failed to reject bid(s)');
         } finally {
             setUpdating(false);
         }
@@ -352,7 +354,7 @@ const ManageBids = () => {
                                     <div className="flex-1">
                                         <div className="flex items-start gap-3 mb-3">
                                             <h3 className="font-bold text-lg text-gray-900 flex-1">
-                                                {paperGroup.paper.title}
+                                                <span className="text-gray-600 font-medium">Paper Title:</span> {paperGroup.paper.title}
                                             </h3>
                                             {paperGroup.paper.trackId?.name && (
                                                 <Badge variant="info">{paperGroup.paper.trackId.name}</Badge>
@@ -395,7 +397,7 @@ const ManageBids = () => {
 
                 {/* Rejection Reason Modal */}
                 {showRejectModal && (
-                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-[60]">
                         <Card className="w-full max-w-md mx-4">
                             <h2 className="text-xl font-bold text-gray-900 mb-4">
                                 {rejectingBid ? 'Reject Bid' : `Reject ${selectedBids.length} Bid(s)`}
@@ -450,7 +452,7 @@ const ManageBids = () => {
                                 <div className="flex items-start justify-between">
                                     <div className="flex-1">
                                         <h2 className="text-2xl font-bold text-gray-900 mb-2">
-                                            {selectedPaper.paper.title}
+                                            <span className="text-gray-600 font-medium">Paper Title:</span> {selectedPaper.paper.title}
                                         </h2>
                                         <div className="flex items-center gap-3 text-sm text-gray-600">
                                             {selectedPaper.paper.trackId?.name && (
@@ -589,12 +591,12 @@ const ManageBids = () => {
                                             {selectedBids.filter(id =>
                                                 selectedPaper.bids.some(b => b._id === id)
                                             ).length > 0 && (
-                                                <span>
-                                                    {selectedBids.filter(id =>
-                                                        selectedPaper.bids.some(b => b._id === id)
-                                                    ).length} bid(s) selected
-                                                </span>
-                                            )}
+                                                    <span>
+                                                        {selectedBids.filter(id =>
+                                                            selectedPaper.bids.some(b => b._id === id)
+                                                        ).length} bid(s) selected
+                                                    </span>
+                                                )}
                                         </div>
                                         <div className="flex gap-3">
                                             <Button
@@ -606,24 +608,24 @@ const ManageBids = () => {
                                             {selectedBids.filter(id =>
                                                 selectedPaper.bids.some(b => b._id === id)
                                             ).length > 0 && (
-                                                <>
-                                                    <Button
-                                                        size="sm"
-                                                        onClick={() => handleBulkUpdate('APPROVED')}
-                                                        disabled={updating}
-                                                    >
-                                                        Approve Selected
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="danger"
-                                                        onClick={() => handleBulkUpdate('REJECTED')}
-                                                        disabled={updating}
-                                                    >
-                                                        Reject Selected
-                                                    </Button>
-                                                </>
-                                            )}
+                                                    <>
+                                                        <Button
+                                                            size="sm"
+                                                            onClick={() => handleBulkUpdate('APPROVED')}
+                                                            disabled={updating}
+                                                        >
+                                                            Approve Selected
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="danger"
+                                                            onClick={() => handleBulkUpdate('REJECTED')}
+                                                            disabled={updating}
+                                                        >
+                                                            Reject Selected
+                                                        </Button>
+                                                    </>
+                                                )}
                                         </div>
                                     </div>
                                 </div>

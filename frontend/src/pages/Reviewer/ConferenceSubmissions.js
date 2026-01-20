@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { useToast } from '../../context/ToastContext';
 import Navbar from '../../components/Navbar';
 import Card from '../../components/Card';
 import Badge from '../../components/Badge';
@@ -14,6 +15,7 @@ const ConferenceSubmissions = () => {
   const { id: conferenceId } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const toast = useToast();
   const [submissions, setSubmissions] = useState([]);
   const [tracks, setTracks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,14 +39,14 @@ const ConferenceSubmissions = () => {
   // Check if a submission matches reviewer's expertise
   const matchesExpertise = useCallback((submission) => {
     if (reviewerExpertise.length === 0) return false;
-    
+
     const trackName = submission.trackId?.name || submission.track || '';
     const normalizedTrack = trackName.toLowerCase().trim();
-    
+
     return reviewerExpertise.some(expertise => {
-      return normalizedTrack === expertise || 
-             normalizedTrack.includes(expertise) ||
-             expertise.includes(normalizedTrack);
+      return normalizedTrack === expertise ||
+        normalizedTrack.includes(expertise) ||
+        expertise.includes(normalizedTrack);
     });
   }, [reviewerExpertise]);
 
@@ -109,7 +111,7 @@ const ConferenceSubmissions = () => {
       await fetchData();
     } catch (err) {
       console.error('Error placing bid:', err);
-      alert(err.response?.data?.message || 'Failed to place bid');
+      toast.error(err.response?.data?.message || 'Failed to place bid');
     } finally {
       setBidding(null);
     }
@@ -190,11 +192,10 @@ const ConferenceSubmissions = () => {
           <div className="flex items-center bg-white border border-gray-200 rounded-lg p-1 shadow-sm">
             <button
               onClick={() => setShowAllPapers(false)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                !showAllPapers
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${!showAllPapers
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-2">
                 <span>⭐</span>
@@ -203,11 +204,10 @@ const ConferenceSubmissions = () => {
             </button>
             <button
               onClick={() => setShowAllPapers(true)}
-              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${
-                showAllPapers
+              className={`px-4 py-2 rounded-md text-sm font-medium transition-all duration-200 ${showAllPapers
                   ? 'bg-blue-600 text-white shadow-sm'
                   : 'text-gray-600 hover:text-gray-900'
-              }`}
+                }`}
             >
               <span className="flex items-center gap-2">
                 <span>📄</span>
@@ -232,7 +232,7 @@ const ConferenceSubmissions = () => {
           <Card className="text-center py-12">
             <div className="text-6xl mb-4">📄</div>
             <h3 className="text-xl font-semibold text-gray-900 mb-2">
-              {reviewerExpertise.length === 0 
+              {reviewerExpertise.length === 0
                 ? 'No Expertise Domains Defined'
                 : 'No Papers Match Your Expertise'}
             </h3>
@@ -270,10 +270,10 @@ const ConferenceSubmissions = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             {filteredSubmissions.map((submission) => {
               const isOutsideExpertise = showAllPapers && !matchesExpertise(submission);
-              
+
               return (
-                <Card 
-                  key={submission._id} 
+                <Card
+                  key={submission._id}
                   hoverable
                   className={isOutsideExpertise ? 'opacity-75 border-2 border-dashed border-gray-300' : ''}
                 >

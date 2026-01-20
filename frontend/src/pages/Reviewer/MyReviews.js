@@ -184,8 +184,8 @@ const MyReviews = () => {
           <button
             onClick={() => setActiveTab('reviews')}
             className={`px-6 py-3 font-medium transition-colors ${activeTab === 'reviews'
-                ? 'text-primary-600 border-b-2 border-primary-600'
-                : 'text-gray-500 hover:text-gray-700'
+              ? 'text-primary-600 border-b-2 border-primary-600'
+              : 'text-gray-500 hover:text-gray-700'
               }`}
           >
             📝 My Reviews ({reviews.length})
@@ -193,8 +193,8 @@ const MyReviews = () => {
           <button
             onClick={() => setActiveTab('bids')}
             className={`px-6 py-3 font-medium transition-colors ${activeTab === 'bids'
-                ? 'text-primary-600 border-b-2 border-primary-600'
-                : 'text-gray-500 hover:text-gray-700'
+              ? 'text-primary-600 border-b-2 border-primary-600'
+              : 'text-gray-500 hover:text-gray-700'
               }`}
           >
             🎯 My Bids ({bids.length})
@@ -342,15 +342,74 @@ const MyReviews = () => {
                             Confidence: {bid.confidence || 0}
                           </span>
                         </div>
+
+                        {/* Review Deadline Display for Accepted/Approved Bids */}
+                        {(bid.status === 'accepted' || bid.status === 'APPROVED') && bid.submissionId?.conferenceId?.startDate && (() => {
+                          const conferenceStart = new Date(bid.submissionId.conferenceId.startDate);
+                          const deadline = new Date(conferenceStart);
+                          deadline.setDate(deadline.getDate() - 7);
+                          const now = new Date();
+                          const daysRemaining = Math.ceil((deadline - now) / (1000 * 60 * 60 * 24));
+                          const isOverdue = daysRemaining < 0;
+                          const isUrgent = daysRemaining <= 2 && !isOverdue;
+                          const isWarning = daysRemaining > 2 && daysRemaining <= 5;
+
+                          return (
+                            <div className={`mt-3 p-3 rounded-lg border ${isOverdue ? 'bg-red-50 border-red-200' :
+                                isUrgent ? 'bg-gradient-to-r from-red-50 to-orange-50 border-red-200' :
+                                  isWarning ? 'bg-gradient-to-r from-yellow-50 to-amber-50 border-yellow-200' :
+                                    'bg-gradient-to-r from-green-50 to-emerald-50 border-green-200'
+                              }`}>
+                              <div className="flex items-center gap-3">
+                                <div className={`text-2xl ${isOverdue ? 'text-red-500' :
+                                    isUrgent ? 'text-red-500' :
+                                      isWarning ? 'text-yellow-500' :
+                                        'text-green-500'
+                                  }`}>
+                                  {isOverdue ? '⚠️' : isUrgent ? '🔥' : isWarning ? '⏰' : '📅'}
+                                </div>
+                                <div className="flex-1">
+                                  <p className="text-sm font-medium text-gray-700">
+                                    Review Deadline
+                                  </p>
+                                  <p className={`text-sm font-bold ${isOverdue ? 'text-red-600' :
+                                      isUrgent ? 'text-red-600' :
+                                        isWarning ? 'text-yellow-700' :
+                                          'text-green-700'
+                                    }`}>
+                                    {deadline.toLocaleDateString('en-US', {
+                                      weekday: 'short',
+                                      month: 'short',
+                                      day: 'numeric',
+                                      year: 'numeric'
+                                    })}
+                                  </p>
+                                </div>
+                                <div className={`px-3 py-1.5 rounded-full text-sm font-bold ${isOverdue ? 'bg-red-100 text-red-700' :
+                                    isUrgent ? 'bg-red-100 text-red-700' :
+                                      isWarning ? 'bg-yellow-100 text-yellow-700' :
+                                        'bg-green-100 text-green-700'
+                                  }`}>
+                                  {isOverdue
+                                    ? `${Math.abs(daysRemaining)} day${Math.abs(daysRemaining) !== 1 ? 's' : ''} overdue`
+                                    : daysRemaining === 0
+                                      ? 'Due today!'
+                                      : `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''} left`
+                                  }
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })()}
                       </div>
                       <div className="flex flex-col items-end gap-2">
                         <Badge variant={
-                          bid.status === 'accepted' ? 'success' :
-                            bid.status === 'rejected' ? 'danger' : 'warning'
+                          bid.status === 'accepted' || bid.status === 'APPROVED' ? 'success' :
+                            bid.status === 'rejected' || bid.status === 'REJECTED' ? 'danger' : 'warning'
                         }>
-                          {(bid.status || 'pending').charAt(0).toUpperCase() + (bid.status || 'pending').slice(1)}
+                          {(bid.status || 'pending').charAt(0).toUpperCase() + (bid.status || 'pending').slice(1).toLowerCase()}
                         </Badge>
-                        {bid.status === 'accepted' && (
+                        {(bid.status === 'accepted' || bid.status === 'APPROVED') && (
                           <Button
                             size="sm"
                             onClick={(e) => {

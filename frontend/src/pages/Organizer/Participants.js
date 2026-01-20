@@ -6,10 +6,12 @@ import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Loading from '../../components/Loading';
 import Modal from '../../components/Modal';
+import { useToast } from '../../context/ToastContext';
 import api from '../../utils/api';
 
 const Participants = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [conferences, setConferences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedConference, setSelectedConference] = useState(null);
@@ -41,7 +43,7 @@ const Participants = () => {
       setShowParticipantsModal(true);
     } catch (error) {
       console.error('Error fetching participants:', error);
-      alert(error.response?.data?.message || 'Failed to fetch participants');
+      toast.error(error.response?.data?.message || 'Failed to fetch participants');
     } finally {
       setLoadingParticipants(false);
     }

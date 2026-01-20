@@ -5,11 +5,13 @@ import Card from '../../components/Card';
 import Button from '../../components/Button';
 import Badge from '../../components/Badge';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 import api from '../../utils/api';
 
 const EventDetails = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -23,7 +25,7 @@ const EventDetails = () => {
       setData(response.data.data);
     } catch (error) {
       console.error('Error fetching event details:', error);
-      alert('Event not found');
+      toast.error('Event not found');
       navigate('/participant/events');
     } finally {
       setLoading(false);
@@ -122,7 +124,7 @@ const EventDetails = () => {
               <p className="text-sm font-medium text-gray-500 mb-1">Venue</p>
               <p className="text-base text-gray-900">{conference.venue}</p>
             </div>
-            
+
             <div>
               <p className="text-sm font-medium text-gray-500 mb-1">Conference Dates</p>
               <p className="text-base text-gray-900">
@@ -191,7 +193,7 @@ const EventDetails = () => {
                 <p className="text-sm font-medium text-gray-500 mb-1">Payment Status</p>
                 <Badge variant={
                   registration.paymentStatus === 'completed' ? 'success' :
-                  registration.paymentStatus === 'not_required' ? 'default' : 'warning'
+                    registration.paymentStatus === 'not_required' ? 'default' : 'warning'
                 }>
                   {registration.paymentStatus === 'not_required' ? 'Not Required' : registration.paymentStatus}
                 </Badge>

@@ -8,11 +8,13 @@ import Select from '../../components/Select';
 import Textarea from '../../components/Textarea';
 import Loading from '../../components/Loading';
 import Badge from '../../components/Badge';
+import { useToast } from '../../context/ToastContext';
 import api from '../../utils/api';
 
 const RegisterForConference = () => {
   const navigate = useNavigate();
   const { id } = useParams();
+  const toast = useToast();
   const [conference, setConference] = useState(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -32,14 +34,14 @@ const RegisterForConference = () => {
     try {
       const response = await api.get(`/participant/conferences/${id}`);
       if (response.data.data.isRegistered) {
-        alert('You are already registered for this conference');
+        toast.info('You are already registered for this conference');
         navigate(`/participant/event/${id}`);
         return;
       }
       setConference(response.data.data.conference);
     } catch (error) {
       console.error('Error fetching conference:', error);
-      alert('Conference not found');
+      toast.error('Conference not found');
       navigate('/participant/events');
     } finally {
       setLoading(false);
@@ -72,11 +74,11 @@ const RegisterForConference = () => {
       });
 
       if (response.data.success) {
-        alert('Registration successful! You are now registered for this conference.');
+        toast.success('Registration successful! You are now registered for this conference.');
         navigate('/participant/registrations');
       }
     } catch (error) {
-      alert(error.response?.data?.message || 'Registration failed. Please try again.');
+      toast.error(error.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setSubmitting(false);
     }
@@ -171,7 +173,7 @@ const RegisterForConference = () => {
         {/* Registration Form */}
         <Card>
           <h3 className="text-xl font-bold text-gray-900 mb-6">Registration Details</h3>
-          
+
           <form onSubmit={handleSubmit} className="space-y-6">
             <Select
               label="Registration Type"

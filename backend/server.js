@@ -32,6 +32,7 @@ const organizerRouter = require('./routes/organizer');
 const participantRouter = require('./routes/participant');
 const tracksRouter = require('./routes/tracks'); // NEW
 const uploadRouter = require('./routes/upload'); // File uploads
+const publicRouter = require('./routes/public'); // Public stats
 
 app.use('/api/auth', authRouter);
 app.use('/api/author', authorRouter);
@@ -40,6 +41,7 @@ app.use('/api/organizer', organizerRouter);
 app.use('/api/participant', participantRouter);
 app.use('/api/tracks', tracksRouter);
 app.use('/api/upload', uploadRouter);
+app.use('/api/public', publicRouter);
 
 // Health check route
 app.get('/api/health', (req, res) => {

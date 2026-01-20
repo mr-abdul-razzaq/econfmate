@@ -5,10 +5,12 @@ import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 import { getReviewerBids, withdrawBid } from '../../utils/api';
 
 const BidSubmissions = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [bids, setBids] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -43,7 +45,7 @@ const BidSubmissions = () => {
       await fetchBids();
     } catch (err) {
       console.error('Error withdrawing bid:', err);
-      alert(err.response?.data?.message || 'Failed to withdraw bid');
+      toast.error(err.response?.data?.message || 'Failed to withdraw bid');
     } finally {
       setWithdrawingId(null);
     }

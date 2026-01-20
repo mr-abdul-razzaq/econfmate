@@ -164,7 +164,7 @@ router.get('/bids', async (req, res) => {
       .populate({
         path: 'submissionId',
         select: 'title conferenceId trackId status lastUpdatedAt',
-        populate: { path: 'conferenceId', select: 'name' }
+        populate: { path: 'conferenceId', select: 'name startDate' }
       })
       .populate({ path: 'trackId', select: 'name conferenceId', populate: { path: 'conferenceId', select: 'name' } })
       .sort({ createdAt: -1 })
@@ -400,7 +400,7 @@ router.post(
             ?.map(ca => ca.email)
             .filter(email => email && email !== author.email)
             .join(', ');
-          
+
           sendEmail(
             author.email,
             templates.revisionRequested(author, populatedSubmission, conference, req.body.comments),
@@ -652,7 +652,7 @@ router.get('/assignments', async (req, res) => {
         select: 'title abstract conferenceId trackId fileUrl status'
       })
       .populate('trackId', 'name')
-      .populate('conferenceId', 'name submissionDeadline')
+      .populate('conferenceId', 'name submissionDeadline startDate')
       .sort({ assignedAt: -1 })
       .lean();
 

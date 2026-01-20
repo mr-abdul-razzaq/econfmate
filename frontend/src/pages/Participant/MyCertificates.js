@@ -5,10 +5,12 @@ import Card from '../../components/Card';
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 import { getParticipantCertificates } from '../../utils/api';
 
 const MyCertificates = () => {
   const navigate = useNavigate();
+  const toast = useToast();
   const [certificates, setCertificates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -45,7 +47,7 @@ const MyCertificates = () => {
     if (certificate.fileUrl) {
       window.open(`${API_BASE_URL}${certificate.fileUrl}`, '_blank');
     } else {
-      alert('Certificate file not available yet');
+      toast.warning('Certificate file not available yet');
     }
   };
 

@@ -7,6 +7,7 @@ import Textarea from '../../components/Textarea';
 import Select from '../../components/Select';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
+import { useToast } from '../../context/ToastContext';
 
 export default function SubmitPaper() {
   const [searchParams] = useSearchParams();
@@ -16,6 +17,7 @@ export default function SubmitPaper() {
   // Get conferenceId from path param (primary) or query param (fallback)
   const conferenceId = pathConferenceId || searchParams.get('conferenceId');
   const trackId = searchParams.get('trackId');
+  const toast = useToast();
 
   const [conferences, setConferences] = useState([]);
   const [tracks, setTracks] = useState([]);
@@ -50,7 +52,7 @@ export default function SubmitPaper() {
       setLoading(true);
       const confData = await discoverConferences();
       const allConferences = confData.data?.conferences || confData.data || [];
-      
+
       // Filter out expired conferences (endDate in the past OR today)
       const activeConferences = allConferences.filter(conf => {
         if (!conf.endDate) return true;
@@ -62,7 +64,7 @@ export default function SubmitPaper() {
         // Conference is active only if endDate is AFTER today (not equal)
         return endDate > today;
       });
-      
+
       setConferences(activeConferences);
 
       if (conferenceId) {
@@ -124,14 +126,14 @@ export default function SubmitPaper() {
   const handleAddCoAuthor = (e) => {
     e.preventDefault();
     if (!newCoAuthor.name.trim() || !newCoAuthor.email.trim()) {
-      alert('Please provide at least name and email for the co-author');
+      toast.warning('Please provide at least name and email for the co-author');
       return;
     }
 
     // Basic email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(newCoAuthor.email)) {
-      alert('Please provide a valid email address');
+      toast.warning('Please provide a valid email address');
       return;
     }
 
