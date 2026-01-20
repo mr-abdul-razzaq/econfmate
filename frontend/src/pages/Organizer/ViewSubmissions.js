@@ -187,7 +187,12 @@ const ViewSubmissions = () => {
     // If it's already a full URL (from Cloudinary), use it directly
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
       // For Cloudinary URLs, add attachment flag for downloads
+      // Cloudinary raw files use /raw/upload/ path structure
       if (fileUrl.includes('cloudinary.com') && forDownload) {
+        // Handle both /upload/ and /raw/upload/ paths
+        if (fileUrl.includes('/raw/upload/')) {
+          return fileUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/');
+        }
         return fileUrl.replace('/upload/', '/upload/fl_attachment/');
       }
       return fileUrl;
@@ -198,6 +203,16 @@ const ViewSubmissions = () => {
       return `${backendUrl}${fileUrl}`;
     }
     return fileUrl;
+  };
+
+  // Helper to get PDF viewer URL (for iframe viewing)
+  const getPdfViewerUrl = (fileUrl) => {
+    const url = getFileUrl(fileUrl);
+    if (url && url.includes('cloudinary.com')) {
+      // Use Google Docs Viewer for reliable PDF rendering
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
   };
 
   if (loading) {
@@ -401,7 +416,7 @@ const ViewSubmissions = () => {
                     </div>
                     <div className="flex gap-2">
                       <a
-                        href={getFileUrl(selectedSubmission.fileUrl)}
+                        href={getPdfViewerUrl(selectedSubmission.fileUrl)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
@@ -409,7 +424,7 @@ const ViewSubmissions = () => {
                         📄 View Paper
                       </a>
                       <a
-                        href={getFileUrl(selectedSubmission.fileUrl)}
+                        href={getFileUrl(selectedSubmission.fileUrl, true)}
                         download
                         className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
                       >

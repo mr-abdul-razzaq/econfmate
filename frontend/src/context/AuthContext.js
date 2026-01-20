@@ -90,8 +90,28 @@ export const AuthProvider = ({ children }) => {
     });
   }
 
+  // For OAuth callbacks - sets both token and user
+  function setAuthData(token, user) {
+    if (!token || !user) return;
+    
+    // Store in localStorage
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
+    
+    // Set axios headers
+    axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+    setAuthToken(token);
+    
+    // Update state
+    setAuth({
+      token,
+      user: { ...user },
+      isAuthenticated: true
+    });
+  }
+
   return (
-    <AuthContext.Provider value={{ ...auth, login, register, logout, updateUser }}>
+    <AuthContext.Provider value={{ ...auth, login, register, logout, updateUser, setAuthData }}>
       {children}
     </AuthContext.Provider>
   );

@@ -36,8 +36,12 @@ const ReviewPaper = () => {
     // If it's already a full URL (from Cloudinary), use it directly
     if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
       // For Cloudinary URLs, add attachment flag for downloads
+      // Cloudinary raw files use /raw/upload/ path structure
       if (fileUrl.includes('cloudinary.com') && forDownload) {
-        // Add fl_attachment flag for forced download
+        // Handle both /upload/ and /raw/upload/ paths
+        if (fileUrl.includes('/raw/upload/')) {
+          return fileUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/');
+        }
         return fileUrl.replace('/upload/', '/upload/fl_attachment/');
       }
       return fileUrl;
@@ -48,6 +52,16 @@ const ReviewPaper = () => {
       return `${API_BASE_URL}${fileUrl}`;
     }
     return fileUrl;
+  };
+
+  // Helper to get PDF viewer URL (for iframe viewing)
+  const getPdfViewerUrl = (fileUrl) => {
+    const url = getFileUrl(fileUrl);
+    if (url && url.includes('cloudinary.com')) {
+      // Use Google Docs Viewer for reliable PDF rendering
+      return `https://docs.google.com/viewer?url=${encodeURIComponent(url)}&embedded=true`;
+    }
+    return url;
   };
 
   const recommendations = [
@@ -445,7 +459,7 @@ const ReviewPaper = () => {
             </div>
             <div style={{ height: '70vh' }}>
               <iframe
-                src={getFileUrl(submission.fileUrl)}
+                src={getPdfViewerUrl(submission.fileUrl)}
                 className="w-full h-full"
                 title="Paper Preview"
               />
