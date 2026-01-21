@@ -8,6 +8,7 @@ import Loading from '../../components/Loading';
 import Textarea from '../../components/Textarea';
 import ScoreSlider from '../../components/ScoreSlider';
 import { getSubmissionForReview, createReview, getReviewerMyReview } from '../../utils/api';
+import { getViewableUrl, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
 
 const ReviewPaper = () => {
   const { submissionId, id } = useParams();
@@ -31,24 +32,7 @@ const ReviewPaper = () => {
     confidentialComments: ''
   });
 
-  // Helper function to get the correct file URL
-  const getFileUrl = (fileUrl, forDownload = false) => {
-    // If it's already a full URL (from Cloudinary), use it directly
-    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
-      // For Cloudinary URLs, add attachment flag for downloads
-      if (fileUrl.includes('cloudinary.com') && forDownload) {
-        // Add fl_attachment flag for forced download
-        return fileUrl.replace('/upload/', '/upload/fl_attachment/');
-      }
-      return fileUrl;
-    }
-    // If it's a relative path (legacy uploads), prepend backend URL
-    if (fileUrl && fileUrl.startsWith('/')) {
-      const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
-      return `${API_BASE_URL}${fileUrl}`;
-    }
-    return fileUrl;
-  };
+  // PDF helper functions imported from utils/pdfHelper
 
   const recommendations = [
     { value: 'ACCEPT', label: 'Accept', color: 'text-green-600' },
@@ -321,13 +305,12 @@ const ReviewPaper = () => {
                 >
                   📄 Preview Paper
                 </Button>
-                <a
-                  href={getFileUrl(submission.fileUrl, true)}
-                  download
+                <button
+                  onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
                   className="inline-flex items-center px-4 py-2 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-lg transition-colors"
                 >
                   ⬇️ Download PDF
-                </a>
+                </button>
               </div>
             )}
           </Card>
@@ -445,19 +428,18 @@ const ReviewPaper = () => {
             </div>
             <div style={{ height: '70vh' }}>
               <iframe
-                src={getFileUrl(submission.fileUrl)}
+                src={getViewableUrl(submission.fileUrl)}
                 className="w-full h-full"
                 title="Paper Preview"
               />
             </div>
             <div className="px-6 py-4 border-t flex justify-end gap-3">
-              <a
-                href={getFileUrl(submission.fileUrl, true)}
-                download
+              <button
+                onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
                 className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
               >
                 Download PDF
-              </a>
+              </button>
               <Button variant="outline" onClick={() => setShowPdfModal(false)}>
                 Close
               </Button>

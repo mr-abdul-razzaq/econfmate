@@ -7,6 +7,7 @@ import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import Textarea from '../../components/Textarea';
+import { viewPdfInNewTab, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
 
 export default function SubmissionDetails() {
     const { id: submissionId } = useParams();
@@ -95,22 +96,7 @@ export default function SubmissionDetails() {
         return <Badge variant={variants[status] || 'default'}>{statusLabels[status] || status}</Badge>;
     };
 
-    const getFileUrl = (fileUrl, forDownload = false) => {
-        // If it's already a full URL (from Cloudinary), use it directly
-        if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
-            // For Cloudinary URLs, add attachment flag for downloads
-            if (fileUrl.includes('cloudinary.com') && forDownload) {
-                return fileUrl.replace('/upload/', '/upload/fl_attachment/');
-            }
-            return fileUrl;
-        }
-        // If it's a relative path (legacy uploads), prepend backend URL
-        if (fileUrl && fileUrl.startsWith('/')) {
-            const backendUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
-            return `${backendUrl}${fileUrl}`;
-        }
-        return fileUrl;
-    };
+    // PDF helper functions imported from utils/pdfHelper
 
     const formatDate = (date) => {
         return new Date(date).toLocaleDateString('en-US', {
@@ -172,7 +158,7 @@ export default function SubmissionDetails() {
                                     <div>
                                         <p className="font-semibold text-blue-900">Co-Author View</p>
                                         <p className="text-sm text-blue-700">
-                                            You are viewing this submission as a co-author. 
+                                            You are viewing this submission as a co-author.
                                             Primary author: <span className="font-medium">{submission.authorId?.name || 'Unknown'}</span>
                                         </p>
                                         <p className="text-xs text-blue-600 mt-1">
@@ -476,14 +462,18 @@ export default function SubmissionDetails() {
                                             <span className="font-medium">File:</span> {submission.fileUrl.split('/').pop()}
                                         </p>
                                     </div>
-                                    <a
-                                        href={getFileUrl(submission.fileUrl)}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
+                                    <button
+                                        onClick={() => viewPdfInNewTab(submission.fileUrl)}
                                         className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition shadow-md"
                                     >
                                         📄 View Paper
-                                    </a>
+                                    </button>
+                                    <button
+                                        onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
+                                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition shadow-md"
+                                    >
+                                        ⬇️ Download
+                                    </button>
                                 </div>
                             </Card>
                         )}

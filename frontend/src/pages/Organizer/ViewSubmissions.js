@@ -17,6 +17,7 @@ import {
   approveSubmission,
   getConferenceDetailsOrganizer
 } from '../../utils/api';
+import { viewPdfInNewTab, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
 
 const ViewSubmissions = () => {
   const { id: conferenceId } = useParams();
@@ -183,22 +184,7 @@ const ViewSubmissions = () => {
     });
   };
 
-  const getFileUrl = (fileUrl, forDownload = false) => {
-    // If it's already a full URL (from Cloudinary), use it directly
-    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
-      // For Cloudinary URLs, add attachment flag for downloads
-      if (fileUrl.includes('cloudinary.com') && forDownload) {
-        return fileUrl.replace('/upload/', '/upload/fl_attachment/');
-      }
-      return fileUrl;
-    }
-    // If it's a relative path (legacy uploads), prepend backend URL
-    if (fileUrl && fileUrl.startsWith('/')) {
-      const backendUrl = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
-      return `${backendUrl}${fileUrl}`;
-    }
-    return fileUrl;
-  };
+  // PDF helper functions imported from utils/pdfHelper
 
   if (loading) {
     return (
@@ -400,21 +386,18 @@ const ViewSubmissions = () => {
                       </p>
                     </div>
                     <div className="flex gap-2">
-                      <a
-                        href={getFileUrl(selectedSubmission.fileUrl)}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={() => viewPdfInNewTab(selectedSubmission.fileUrl)}
                         className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition"
                       >
                         📄 View Paper
-                      </a>
-                      <a
-                        href={getFileUrl(selectedSubmission.fileUrl)}
-                        download
+                      </button>
+                      <button
+                        onClick={() => downloadPdfFile(selectedSubmission.fileUrl, extractFilename(selectedSubmission.fileUrl, selectedSubmission.title))}
                         className="px-4 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
                       >
                         ⬇️ Download
-                      </a>
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -483,15 +466,13 @@ const ViewSubmissions = () => {
                       type="button"
                       onClick={() => setDecision(opt.value)}
                       disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
-                      className={`p-3 rounded-lg border-2 text-center transition-all ${
-                        decision === opt.value
+                      className={`p-3 rounded-lg border-2 text-center transition-all ${decision === opt.value
                           ? opt.color + ' border-2'
                           : 'border-gray-200 hover:border-gray-300'
-                        } ${
-                        (selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected')
+                        } ${(selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected')
                           ? 'opacity-50 cursor-not-allowed'
                           : ''
-                      }`}
+                        }`}
                     >
                       <span className="font-medium text-sm">{opt.label}</span>
                     </button>

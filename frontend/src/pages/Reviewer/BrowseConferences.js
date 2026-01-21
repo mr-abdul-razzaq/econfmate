@@ -7,32 +7,16 @@ import Button from '../../components/Button';
 import Loading from '../../components/Loading';
 import Modal from '../../components/Modal';
 import api from '../../utils/api';
+import { getViewableUrl, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
 
 const MyAssignedPapers = () => {
   const navigate = useNavigate();
   const [submissions, setSubmissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPdfModal, setShowPdfModal] = useState(false);
-  const [pdfUrl, setPdfUrl] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState(null);
 
-  // Helper function to get the correct file URL
-  const getFileUrl = (fileUrl, forDownload = false) => {
-    // If it's already a full URL (from Cloudinary), use it directly
-    if (fileUrl && (fileUrl.startsWith('http://') || fileUrl.startsWith('https://'))) {
-      // For Cloudinary URLs, add attachment flag for downloads
-      if (fileUrl.includes('cloudinary.com') && forDownload) {
-        return fileUrl.replace('/upload/', '/upload/fl_attachment/');
-      }
-      return fileUrl;
-    }
-    // If it's a relative path (legacy uploads), prepend backend URL
-    if (fileUrl && fileUrl.startsWith('/')) {
-      const API_BASE_URL = process.env.REACT_APP_API_URL?.replace('/api', '') || 'https://cms-backend-fjdo.onrender.com';
-      return `${API_BASE_URL}${fileUrl}`;
-    }
-    return fileUrl;
-  };
+  // PDF helper functions imported from utils/pdfHelper
 
   useEffect(() => {
     fetchAssignedSubmissions();
@@ -171,20 +155,18 @@ const MyAssignedPapers = () => {
                     size="sm"
                     variant="primary"
                     onClick={() => {
-                      setPdfUrl(getFileUrl(submission.fileUrl));
                       setSelectedSubmission(submission);
                       setShowPdfModal(true);
                     }}
                   >
                     📄 View
                   </Button>
-                  <a
-                    href={getFileUrl(submission.fileUrl, true)}
-                    download
+                  <button
+                    onClick={() => downloadPdfFile(submission.fileUrl, extractFilename(submission.fileUrl, submission.title))}
                     className="inline-flex items-center px-3 py-1.5 text-sm font-medium text-blue-600 hover:text-blue-700 border border-blue-600 hover:border-blue-700 rounded-md transition-colors"
                   >
                     ⬇️ Download
-                  </a>
+                  </button>
                   <Button
                     size="sm"
                     variant={submission.hasReviewed ? 'outline' : 'success'}
@@ -204,7 +186,6 @@ const MyAssignedPapers = () => {
         isOpen={showPdfModal}
         onClose={() => {
           setShowPdfModal(false);
-          setPdfUrl('');
         }}
         title={selectedSubmission ? `${selectedSubmission.title} - ${selectedSubmission.authorId?.name}` : 'Paper Preview'}
         size="large"
@@ -220,27 +201,24 @@ const MyAssignedPapers = () => {
                 )}
               </div>
               <div className="flex gap-2">
-                <a
-                  href={pdfUrl}
-                  download
+                <button
+                  onClick={() => downloadPdfFile(selectedSubmission.fileUrl, extractFilename(selectedSubmission.fileUrl, selectedSubmission.title))}
                   className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
                 >
                   Download PDF
-                </a>
-                <a
-                  href={pdfUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
+                </button>
+                <button
+                  onClick={() => window.open(getViewableUrl(selectedSubmission.fileUrl), '_blank')}
                   className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   Open in New Tab
-                </a>
+                </button>
               </div>
             </div>
 
             <div className="border rounded-lg overflow-hidden" style={{ height: '70vh' }}>
               <iframe
-                src={pdfUrl}
+                src={getViewableUrl(selectedSubmission.fileUrl)}
                 className="w-full h-full"
                 title="Paper Preview"
               />
@@ -260,7 +238,6 @@ const MyAssignedPapers = () => {
                 variant="outline"
                 onClick={() => {
                   setShowPdfModal(false);
-                  setPdfUrl('');
                 }}
               >
                 Close
