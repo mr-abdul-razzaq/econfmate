@@ -270,13 +270,18 @@ const BidSubmissions = () => {
 
                       {/* Has revision review and author has resubmitted - can update */}
                       {bid.reviewStatus?.hasReview && bid.reviewStatus?.canUpdate && (
-                        <Button
-                          fullWidth
-                          variant="warning"
-                          onClick={() => navigate(`/reviewer/review/${bid.submissionId?._id}`)}
-                        >
-                          🔄 Update Review (Revision Submitted)
-                        </Button>
+                        <div className="space-y-2">
+                          <div className="text-center text-xs text-blue-600 bg-blue-50 py-1.5 px-2 rounded-md border border-blue-200 font-medium">
+                            📄 Author submitted revised paper
+                          </div>
+                          <Button
+                            fullWidth
+                            variant="warning"
+                            onClick={() => navigate(`/reviewer/review/${bid.submissionId?._id}`)}
+                          >
+                            🔄 Re-Review Updated Paper
+                          </Button>
+                        </div>
                       )}
 
                       {/* Fallback if no reviewStatus - legacy behavior */}

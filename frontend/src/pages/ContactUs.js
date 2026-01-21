@@ -76,12 +76,14 @@ const ContactUs = () => {
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-5">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-3 cursor-pointer" onClick={() => navigate('/')}>
-                            <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-2xl shadow-lg shadow-blue-500/20">
-                                📚
-                            </div>
+                            <img
+                                src="/logo.png"
+                                alt="eConfMate Logo"
+                                className="h-12 w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
+                            />
                             <div>
-                                <h1 className="text-2xl font-bold text-gray-900">
-                                    Conference Management System
+                                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
+                                    eConfMate
                                 </h1>
                                 <p className="text-sm text-gray-500">Academic Excellence, Simplified</p>
                             </div>
@@ -153,7 +155,7 @@ const ContactUs = () => {
                                 <div>
                                     <h4 className="font-semibold text-gray-900 mb-1">Need Help?</h4>
                                     <p className="text-sm text-gray-600">
-                                        Check out our FAQ section on the home page for quick answers to common questions about the Conference Management System.
+                                        Check out our FAQ section on the home page for quick answers to common questions about eConfMate.
                                     </p>
                                 </div>
                             </div>
@@ -249,7 +251,7 @@ const ContactUs = () => {
             <footer className="bg-gray-900 text-white mt-16">
                 <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
                     <div className="text-center text-gray-500 text-sm">
-                        © {new Date().getFullYear()} Conference Management System. All rights reserved.
+                        © {new Date().getFullYear()} eConfMate - Conference Management System. All rights reserved.
                     </div>
                 </div>
             </footer>

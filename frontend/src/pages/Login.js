@@ -62,9 +62,19 @@ const Login = () => {
       <div className="max-w-md w-full">
         {/* Logo/Title */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold text-gray-900 mb-2">
+          <div className="flex items-center justify-center gap-3 mb-4">
+            <img
+              src="/logo.png"
+              alt="eConfMate Logo"
+              className="h-16 w-16 object-contain transition-transform duration-200 hover:scale-110"
+            />
+            <h1 className="text-4xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
+              eConfMate
+            </h1>
+          </div>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">
             Welcome Back
-          </h1>
+          </h2>
           <p className="text-gray-600">
             {roleParam ? `Login as ${roleParam}` : 'Sign in to your account'}
           </p>

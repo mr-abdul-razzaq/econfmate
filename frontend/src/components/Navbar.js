@@ -69,8 +69,17 @@ const Navbar = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between h-16">
           <div className="flex items-center">
-            <Link to="/" className="text-xl font-bold text-primary-600">
-              CMS
+            <Link to="/" className="flex items-center space-x-3 group">
+              {/* Logo */}
+              <img 
+                src="/logo.png" 
+                alt="eConfMate Logo" 
+                className="h-10 w-10 object-contain transition-transform duration-200 group-hover:scale-110"
+              />
+              {/* Brand Text */}
+              <span className="text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent hover:from-primary-700 hover:via-primary-800 hover:to-blue-700 transition-all duration-200">
+                eConfMate
+              </span>
             </Link>
             <div className="hidden md:flex ml-10 space-x-8">
               {links.map((link) => (

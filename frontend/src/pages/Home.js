@@ -208,7 +208,7 @@ const Home = () => {
   ];
 
   const faqs = [
-    { question: "What is the Conference Management System?", answer: "CMS is a comprehensive platform designed to streamline the entire lifecycle of academic and professional conferences, from paper submission to certificate generation." },
+    { question: "What is eConfMate?", answer: "eConfMate is a comprehensive platform designed to streamline the entire lifecycle of academic and professional conferences, from paper submission to certificate generation." },
     { question: "How do I register as an organizer?", answer: "Click on the Organizer role card, then register with your email and credentials. Once registered, you can create and manage conferences." },
     { question: "Can I have multiple roles?", answer: "Yes, you can register separate accounts for different roles or switch between roles based on your conference involvement." },
     { question: "How does the review process work?", answer: "Organizers assign papers to reviewers based on expertise. Reviewers can bid on papers, provide scores, and submit detailed feedback." },
@@ -228,17 +228,17 @@ const Home = () => {
             <div className="flex items-center gap-3">
               <img
                 src="/logo.png"
-                alt="CMS Logo"
-                className="w-12 h-12 rounded-xl object-contain shadow-lg"
+                alt="eConfMate Logo"
+                className="h-12 w-12 object-contain rounded-xl shadow-lg transition-transform duration-200 hover:scale-110"
               />
               <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Conference Management System
+                <h1 className="text-2xl font-bold bg-gradient-to-r from-primary-600 via-primary-700 to-blue-600 bg-clip-text text-transparent">
+                  eConfMate
                 </h1>
                 <p className="text-sm text-gray-500">Academic Excellence, Simplified</p>
               </div>
             </div>
-            <div className="hidden flex items-center gap-3">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => navigate('/register')}
                 className="px-6 py-2.5 rounded-xl border-2 border-blue-600 text-blue-600 font-medium hover:bg-blue-50 transition-all duration-300"
@@ -387,7 +387,7 @@ const Home = () => {
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-12">
             <h3 className="text-3xl font-bold text-gray-900 mb-3">Frequently Asked Questions</h3>
-            <p className="text-gray-600">Get answers to common questions about CMS</p>
+            <p className="text-gray-600">Get answers to common questions about eConfMate</p>
           </div>
 
           <div className="space-y-4">
@@ -431,10 +431,12 @@ const Home = () => {
               <div className="flex items-center gap-3 mb-4">
                 <img
                   src="/logo.png"
-                  alt="CMS Logo"
-                  className="w-10 h-10 rounded-xl object-contain"
+                  alt="eConfMate Logo"
+                  className="h-10 w-10 rounded-xl object-contain"
                 />
-                <span className="text-xl font-bold">CMS</span>
+                <span className="text-xl font-bold bg-gradient-to-r from-blue-400 to-blue-600 bg-clip-text text-transparent">
+                  eConfMate
+                </span>
               </div>
               <p className="text-gray-400 text-sm max-w-md">
                 The leading platform for academic conference management. Trusted by researchers,
@@ -463,7 +465,7 @@ const Home = () => {
             </div>
           </div>
           <div className="pt-8 border-t border-gray-800 text-center text-gray-500 text-sm">
-            © {new Date().getFullYear()} Conference Management System. All rights reserved.
+            © {new Date().getFullYear()} eConfMate - Conference Management System. All rights reserved.
           </div>
         </div>
       </footer>
