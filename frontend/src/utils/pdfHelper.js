@@ -63,7 +63,7 @@ export const extractFilename = (fileUrl, defaultName = 'paper') => {
 };
 
 /**
- * Fetch a file as a blob and create a blob URL with correct MIME type
+ * Fetch a file as a blob and create a blob URL
  * This works around Cloudinary raw resource limitations
  * @param {string} fileUrl - The URL of the file to fetch
  * @returns {Promise<string>} - A blob URL that can be used in iframe/object tags
@@ -80,14 +80,8 @@ export const fetchAsBlobUrl = async (fileUrl) => {
         throw new Error(`Failed to fetch file: ${response.status}`);
     }
 
-    // Get the blob data
-    const blobData = await response.blob();
-
-    // Create a new blob with explicit PDF MIME type
-    // This ensures the browser knows to render it inline instead of downloading
-    const pdfBlob = new Blob([blobData], { type: 'application/pdf' });
-
-    return window.URL.createObjectURL(pdfBlob);
+    const blob = await response.blob();
+    return window.URL.createObjectURL(blob);
 };
 
 /**
