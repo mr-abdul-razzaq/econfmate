@@ -8,7 +8,7 @@ import Loading from '../../components/Loading';
 import Textarea from '../../components/Textarea';
 import ScoreSlider from '../../components/ScoreSlider';
 import { getSubmissionForReview, createReview, getReviewerMyReview } from '../../utils/api';
-import { getViewableUrl, downloadPdfFile, extractFilename, viewPdfInNewTab } from '../../utils/pdfHelper';
+import { fetchAsBlobUrl, downloadPdfFile, extractFilename, viewPdfInNewTab } from '../../utils/pdfHelper';
 
 const ReviewPaper = () => {
   const { submissionId, id } = useParams();
@@ -20,6 +20,8 @@ const ReviewPaper = () => {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
   const [showPdfModal, setShowPdfModal] = useState(false);
+  const [pdfBlobUrl, setPdfBlobUrl] = useState(null);
+  const [pdfLoading, setPdfLoading] = useState(false);
 
   // Review status state
   const [reviewStatus, setReviewStatus] = useState(null);
@@ -85,6 +87,30 @@ const ReviewPaper = () => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Load PDF blob when modal opens
+  useEffect(() => {
+    if (showPdfModal && submission?.fileUrl && !pdfBlobUrl) {
+      setPdfLoading(true);
+      fetchAsBlobUrl(submission.fileUrl)
+        .then(url => {
+          setPdfBlobUrl(url);
+          setPdfLoading(false);
+        })
+        .catch(err => {
+          console.error('Error loading PDF:', err);
+          setPdfLoading(false);
+        });
+    }
+  }, [showPdfModal, submission?.fileUrl, pdfBlobUrl]);
+
+  // Cleanup blob URL when modal closes
+  useEffect(() => {
+    if (!showPdfModal && pdfBlobUrl) {
+      window.URL.revokeObjectURL(pdfBlobUrl);
+      setPdfBlobUrl(null);
+    }
+  }, [showPdfModal, pdfBlobUrl]);
 
   const handleInputChange = (field, value) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -426,12 +452,29 @@ const ReviewPaper = () => {
                 ×
               </button>
             </div>
-            <div style={{ height: '70vh' }}>
-              <iframe
-                src={getViewableUrl(submission.fileUrl)}
-                className="w-full h-full"
-                title="Paper Preview"
-              />
+            <div style={{ height: '70vh' }} className="bg-gray-100 flex items-center justify-center">
+              {pdfLoading ? (
+                <div className="text-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+                  <p className="text-gray-600">Loading PDF...</p>
+                </div>
+              ) : pdfBlobUrl ? (
+                <iframe
+                  src={pdfBlobUrl}
+                  className="w-full h-full"
+                  title="Paper Preview"
+                />
+              ) : (
+                <div className="text-center text-gray-500">
+                  <p>Unable to load PDF preview</p>
+                  <button
+                    onClick={() => viewPdfInNewTab(submission.fileUrl)}
+                    className="mt-2 text-blue-600 hover:text-blue-700"
+                  >
+                    Open in New Tab instead
+                  </button>
+                </div>
+              )}
             </div>
             <div className="px-6 py-4 border-t flex justify-between items-center">
               <div className="flex gap-3">
