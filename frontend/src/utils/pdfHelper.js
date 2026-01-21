@@ -28,14 +28,43 @@ export const getDirectUrl = (fileUrl) => {
 
 /**
  * Get a viewable URL for a PDF file
- * For Cloudinary raw resources, opens directly in new tab (browser will handle PDF rendering)
+ * For Cloudinary raw resources, adds fl_inline flag to make the PDF render in browser
  * @param {string} fileUrl - The original file URL
- * @returns {string} - A URL that can be used for viewing
+ * @returns {string} - A URL that can be used for inline viewing (in iframe or new tab)
  */
 export const getViewableUrl = (fileUrl) => {
-    // For raw Cloudinary resources, the direct URL should work in a new tab
-    // Browsers will render PDFs natively when opened directly
-    return getDirectUrl(fileUrl);
+    if (!fileUrl) return '';
+
+    const fullUrl = getDirectUrl(fileUrl);
+
+    // For Cloudinary raw resources, add fl_inline flag to enable browser rendering
+    // This changes Content-Disposition from "attachment" to "inline"
+    if (fullUrl.includes('cloudinary.com') && fullUrl.includes('/raw/upload/')) {
+        // Insert fl_inline flag after /upload/
+        return fullUrl.replace('/raw/upload/', '/raw/upload/fl_inline/');
+    }
+
+    return fullUrl;
+};
+
+/**
+ * Get a downloadable URL for a file
+ * For Cloudinary resources, adds fl_attachment flag to force download
+ * @param {string} fileUrl - The original file URL
+ * @returns {string} - A URL that forces download when accessed
+ */
+export const getDownloadUrl = (fileUrl) => {
+    if (!fileUrl) return '';
+
+    const fullUrl = getDirectUrl(fileUrl);
+
+    // For Cloudinary raw resources, add fl_attachment flag to force download
+    if (fullUrl.includes('cloudinary.com') && fullUrl.includes('/raw/upload/')) {
+        // Insert fl_attachment flag after /upload/
+        return fullUrl.replace('/raw/upload/', '/raw/upload/fl_attachment/');
+    }
+
+    return fullUrl;
 };
 
 /**
@@ -52,7 +81,9 @@ export const extractFilename = (fileUrl, defaultName = 'paper') => {
         const urlPath = fileUrl.split('?')[0]; // Remove query params
         let filename = urlPath.split('/').pop();
 
-        // Clean up filename - remove cloudinary prefixes like "paper-1234567890"
+        // Clean up Cloudinary flags from filename
+        filename = filename.replace(/^fl_(inline|attachment)\//, '');
+
         // If the filename is a cloudinary-style name, use the default instead
         if (filename.startsWith('paper-') && /paper-\d+-\d+/.test(filename)) {
             filename = defaultName;
@@ -86,7 +117,7 @@ export const downloadPdfFile = async (fileUrl, filename = null) => {
     }
 
     try {
-        // Get the direct file URL (no transformations for raw resources)
+        // Get the direct file URL (no flags needed, we'll handle download ourselves)
         const downloadUrl = getDirectUrl(fileUrl);
 
         // Fetch the file as a blob
@@ -120,14 +151,15 @@ export const downloadPdfFile = async (fileUrl, filename = null) => {
     } catch (error) {
         console.error('Error downloading PDF:', error);
 
-        // Fallback: open in new tab
-        const fallbackUrl = getDirectUrl(fileUrl);
+        // Fallback: try opening with fl_attachment flag
+        const fallbackUrl = getDownloadUrl(fileUrl);
         window.open(fallbackUrl, '_blank');
     }
 };
 
 /**
  * Open a PDF for viewing in a new tab
+ * Uses fl_inline flag for Cloudinary URLs so PDF renders in browser
  * @param {string} fileUrl - The URL of the file to view
  */
 export const viewPdfInNewTab = (fileUrl) => {
@@ -136,7 +168,7 @@ export const viewPdfInNewTab = (fileUrl) => {
         return;
     }
 
-    const viewUrl = getDirectUrl(fileUrl);
+    const viewUrl = getViewableUrl(fileUrl);
     window.open(viewUrl, '_blank');
 };
 
@@ -146,6 +178,7 @@ export const getFileUrl = getDirectUrl;
 const pdfHelper = {
     getDirectUrl,
     getViewableUrl,
+    getDownloadUrl,
     getFileUrl,
     extractFilename,
     downloadPdfFile,

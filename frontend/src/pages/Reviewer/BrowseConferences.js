@@ -188,7 +188,7 @@ const MyAssignedPapers = () => {
           setShowPdfModal(false);
         }}
         title={selectedSubmission ? `${selectedSubmission.title} - ${selectedSubmission.authorId?.name}` : 'Paper Preview'}
-        size="medium"
+        size="large"
       >
         {selectedSubmission && (
           <div className="space-y-4">
@@ -200,46 +200,48 @@ const MyAssignedPapers = () => {
               )}
             </div>
 
-            <div className="p-8 text-center bg-blue-50 rounded-lg">
-              <div className="text-6xl mb-4">📄</div>
-              <h4 className="text-lg font-semibold text-gray-900 mb-2">Paper Document</h4>
-              <p className="text-gray-600 mb-4">
-                Click below to view or download this paper.
-              </p>
-              <div className="flex justify-center gap-3">
+            <div className="border rounded-lg overflow-hidden" style={{ height: '60vh' }}>
+              <iframe
+                src={getViewableUrl(selectedSubmission.fileUrl)}
+                className="w-full h-full"
+                title="Paper Preview"
+              />
+            </div>
+
+            <div className="flex justify-between items-center">
+              <div className="flex gap-2">
                 <button
                   onClick={() => window.open(getViewableUrl(selectedSubmission.fileUrl), '_blank')}
-                  className="px-5 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-blue-600 border border-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
                 >
                   📄 Open in New Tab
                 </button>
                 <button
                   onClick={() => downloadPdfFile(selectedSubmission.fileUrl, extractFilename(selectedSubmission.fileUrl, selectedSubmission.title))}
-                  className="px-5 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-lg transition-colors"
                 >
                   ⬇️ Download PDF
                 </button>
               </div>
-            </div>
-
-            <div className="flex justify-end gap-2">
-              <Button
-                variant={selectedSubmission.hasReviewed ? 'outline' : 'primary'}
-                onClick={() => {
-                  setShowPdfModal(false);
-                  navigate(`/reviewer/review/${selectedSubmission._id}`);
-                }}
-              >
-                {selectedSubmission.hasReviewed ? 'View Your Review' : 'Submit Review'}
-              </Button>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowPdfModal(false);
-                }}
-              >
-                Close
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant={selectedSubmission.hasReviewed ? 'outline' : 'primary'}
+                  onClick={() => {
+                    setShowPdfModal(false);
+                    navigate(`/reviewer/review/${selectedSubmission._id}`);
+                  }}
+                >
+                  {selectedSubmission.hasReviewed ? 'View Your Review' : 'Submit Review'}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowPdfModal(false);
+                  }}
+                >
+                  Close
+                </Button>
+              </div>
             </div>
           </div>
         )}
