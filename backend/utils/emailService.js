@@ -1,31 +1,24 @@
-const nodemailer = require('nodemailer');
+const { BrevoClient } = require('@getbrevo/brevo');
 
-// Create Mailtrap SMTP transporter
-const createTransporter = () => {
-  // For production, use Mailtrap SMTP credentials from .env
-  if (process.env.MAILTRAP_HOST && process.env.MAILTRAP_USER) {
-    return nodemailer.createTransport({
-      host: process.env.MAILTRAP_HOST,
-      port: parseInt(process.env.MAILTRAP_PORT) || 587,
-      auth: {
-        user: process.env.MAILTRAP_USER,
-        pass: process.env.MAILTRAP_PASS
-      }
+// Create Brevo client
+const createBrevoClient = () => {
+  if (process.env.BREVO_API_KEY) {
+    return new BrevoClient({
+      apiKey: process.env.BREVO_API_KEY
     });
   }
+  return null;
+};
 
-  // Development fallback - logs to console
-  return {
-    sendMail: async (mailOptions) => {
-      console.log('📧 EMAIL (Development Mode):', {
-        to: mailOptions.to,
-        cc: mailOptions.cc || 'None',
-        subject: mailOptions.subject,
-        text: mailOptions.text?.substring(0, 200) + '...'
-      });
-      return { messageId: 'dev-' + Date.now() };
-    }
-  };
+// Development fallback - logs to console
+const devSendMail = async (mailOptions) => {
+  console.log('📧 EMAIL (Development Mode):', {
+    to: mailOptions.to,
+    cc: mailOptions.cc || 'None',
+    subject: mailOptions.subject,
+    text: mailOptions.text?.substring(0, 200) + '...'
+  });
+  return { messageId: 'dev-' + Date.now() };
 };
 
 // Email templates
@@ -321,38 +314,58 @@ const templates = {
   })
 };
 
-// Send email function using Nodemailer with Mailtrap SMTP
+// Send email function using Brevo Transactional Email API
 const sendEmail = async (to, template, cc = null) => {
   try {
-    const transporter = createTransporter();
+    const brevoClient = createBrevoClient();
 
-    // Prepare email data
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || 'CMS System <noreply@cms-system.com>',
-      to: Array.isArray(to) ? to.join(', ') : to,
+    // If no Brevo API key, use development fallback
+    if (!brevoClient) {
+      return await devSendMail({
+        to: Array.isArray(to) ? to.join(', ') : to,
+        cc: cc,
+        subject: template.subject,
+        text: template.text
+      });
+    }
+
+    // Build the recipient list
+    const toRecipients = Array.isArray(to)
+      ? to.map(email => ({ email }))
+      : [{ email: to }];
+
+    // Build Brevo email payload
+    const emailPayload = {
+      sender: {
+        name: process.env.BREVO_SENDER_NAME || 'CMS System',
+        email: process.env.BREVO_SENDER_EMAIL || 'econfmate@gmail.com'
+      },
+      to: toRecipients,
       subject: template.subject,
-      html: template.html,
-      text: template.text
+      htmlContent: template.html,
+      textContent: template.text
     };
 
     // Add CC if provided (for co-authors)
     if (cc) {
-      mailOptions.cc = Array.isArray(cc) ? cc.join(', ') : cc;
+      emailPayload.cc = Array.isArray(cc)
+        ? cc.map(email => ({ email }))
+        : [{ email: cc }];
     }
 
-    // Send via Nodemailer/Mailtrap
-    const info = await transporter.sendMail(mailOptions);
+    // Send via Brevo API
+    const result = await brevoClient.transactionalEmails.sendTransacEmail(emailPayload);
 
-    console.log('✅ Email sent:', {
-      to: mailOptions.to,
-      cc: mailOptions.cc || 'None',
+    console.log('✅ Email sent via Brevo:', {
+      to: Array.isArray(to) ? to.join(', ') : to,
+      cc: cc || 'None',
       subject: template.subject,
-      messageId: info.messageId
+      messageId: result.messageId
     });
 
-    return { messageId: info.messageId, ...info };
+    return { messageId: result.messageId, ...result };
   } catch (error) {
-    console.error('❌ Email error:', error);
+    console.error('❌ Brevo email error:', error);
     throw error;
   }
 };
