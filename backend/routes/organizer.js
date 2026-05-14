@@ -13,6 +13,8 @@ const User = require('../models/User');
 const { sendEmail, templates } = require('../utils/emailService');
 const { generateCertificate, formatConferenceDates } = require('../utils/certificateGenerator');
 const { upload, setUploadType } = require('../middleware/upload');
+const { analyzePaper } = require('../utils/pdeClient');
+const { cleanupDuplicateSubmission } = require('../utils/duplicateCleanup');
 
 // All organizer routes require authentication and organizer role
 router.use(auth, authorize('organizer'));
@@ -371,11 +373,11 @@ router.get('/conferences/:id/submissions', async (req, res) => {
 
 /**
  * @route   PATCH /api/organizer/submission/:submissionId/decision
- * @desc    Make a final decision on a submission (accept/reject)
+ * @desc    Make a final decision on a submission (accept/reject/reject_duplicate)
  * @access  Private (Organizer)
  */
 router.patch('/submission/:submissionId/decision', [
-  body('decision').isIn(['accepted', 'rejected', 'revision', 'under_review']).withMessage('Decision must be accepted, rejected, revision, or under_review'),
+  body('decision').isIn(['accepted', 'rejected', 'rejected_duplicate', 'revision', 'under_review']).withMessage('Decision must be accepted, rejected, rejected_duplicate, revision, or under_review'),
   body('feedback').optional().trim()
 ], async (req, res) => {
   try {
@@ -399,22 +401,54 @@ router.patch('/submission/:submissionId/decision', [
       return res.status(403).json({ success: false, message: 'Not authorized to decide this submission' });
     }
 
+    const decision = req.body.decision;
+
     // Update submission
     const update = {
-      status: req.body.decision,
+      status: decision,
       'decision.decidedBy': req.user.userId,
       'decision.decidedAt': new Date(),
       'decision.feedback': req.body.feedback || ''
     };
 
+    // If rejecting as duplicate, add rejection details
+    if (decision === 'rejected_duplicate') {
+      update.rejectionDetails = {
+        reason: req.body.feedback || 'Paper identified as duplicate by PaperDuplicationEngine',
+        duplicateStatus: submission.duplicationCheck?.status || 'unknown',
+        pdeSummary: submission.duplicationCheck?.message || 'Duplicate detected',
+        rejectedAt: new Date()
+      };
+    }
+
     const updated = await Submission.findByIdAndUpdate(req.params.submissionId, update, { new: true })
       .populate('authorId', 'name email')
       .populate('trackId', 'name');
 
-    // Send emails based on decision
-    const decision = req.body.decision;
+    // Handle rejected_duplicate: cleanup + notify
+    if (decision === 'rejected_duplicate') {
+      // Trigger async cleanup (Cloudinary file + PDE hash)
+      console.log(`[PDE] Triggering cleanup for duplicate-rejected submission: ${req.params.submissionId}`);
+      cleanupDuplicateSubmission(req.params.submissionId)
+        .then(result => {
+          console.log(`[PDE] Cleanup result for ${req.params.submissionId}:`, result);
+        })
+        .catch(err => console.error('[PDE] Cleanup error:', err.message));
 
-    if (decision === 'accepted' || decision === 'rejected') {
+      // Send duplicate rejection email to author (CC co-authors)
+      if (updated.authorId?.email) {
+        const coAuthorEmails = updated.coAuthors
+          ?.map(ca => ca.email)
+          .filter(email => email && email !== updated.authorId.email)
+          .join(', ');
+
+        sendEmail(
+          updated.authorId.email,
+          templates.paperRejectedDuplicate(updated.authorId, updated, conference),
+          coAuthorEmails || null
+        ).catch(err => console.error('Email error:', err));
+      }
+    } else if (decision === 'accepted' || decision === 'rejected') {
       // Send to author (CC co-authors)
       if (updated.authorId?.email) {
         const emailTemplate = decision === 'accepted'
@@ -471,6 +505,7 @@ router.patch('/submission/:submissionId/decision', [
 /**
  * @route   PUT /api/organizer/submissions/:id/approve
  * @desc    Approve a submission for review (organizer-level approval)
+ *          Warns if duplication check flagged the paper, but still allows override
  * @access  Private (Organizer)
  */
 router.put('/submissions/:id/approve', async (req, res) => {
@@ -487,6 +522,17 @@ router.put('/submissions/:id/approve', async (req, res) => {
     const conference = await Conference.findById(track.conferenceId).lean();
     if (!conference || conference.organizerId.toString() !== req.user.userId) {
       return res.status(403).json({ success: false, message: 'Not authorized to approve this submission' });
+    }
+
+    // Check duplication status — warn but allow override via query param
+    const dupStatus = submission.duplicationCheck?.status;
+    const forceOverride = req.query.overrideDupCheck === 'true';
+    let dupWarning = null;
+
+    if ((dupStatus === 'suspected_duplicate' || dupStatus === 'verified_duplicate') && !forceOverride) {
+      dupWarning = `Warning: This paper was flagged as ${dupStatus.replace('_', ' ')} ` +
+        `(score: ${submission.duplicationCheck?.similarityScore}%). ` +
+        `Approval will proceed, but consider reviewing the duplication report.`;
     }
 
     submission.organizerApproved = true;
@@ -508,11 +554,108 @@ router.put('/submissions/:id/approve', async (req, res) => {
       ).catch(err => console.error('Email error:', err));
     }
 
-    res.json({ success: true, message: 'Submission approved', data: submission });
+    const response = { success: true, message: 'Submission approved', data: submission };
+    if (dupWarning) {
+      response.warning = dupWarning;
+    }
+    res.json(response);
 
   } catch (error) {
     console.error('Approve submission error:', error);
     res.status(500).json({ success: false, message: 'Error approving submission' });
+  }
+});
+
+/**
+ * @route   POST /api/organizer/submissions/:id/retry-dup-check
+ * @desc    Manually retry a failed or pending duplication check for a submission
+ * @access  Private (Organizer)
+ */
+router.post('/submissions/:id/retry-dup-check', async (req, res) => {
+  try {
+    const submission = await Submission.findById(req.params.id);
+    if (!submission) {
+      return res.status(404).json({ success: false, message: 'Submission not found' });
+    }
+
+    const track = await Track.findById(submission.trackId).lean();
+    if (!track) {
+      return res.status(400).json({ success: false, message: 'Submission track missing' });
+    }
+    const conference = await Conference.findById(track.conferenceId).lean();
+    if (!conference || conference.organizerId.toString() !== req.user.userId) {
+      return res.status(403).json({ success: false, message: 'Not authorized' });
+    }
+
+    // Only allow retry if status is error or pending
+    const dupStatus = submission.duplicationCheck?.status;
+    if (dupStatus && dupStatus !== 'error' && dupStatus !== 'pending') {
+      return res.status(400).json({
+        success: false,
+        message: `Duplication check already completed with status: ${dupStatus}`
+      });
+    }
+
+    // Update status to pending
+    submission.status = 'submitted_pending_dup_check';
+    submission.duplicationCheck = {
+      ...submission.duplicationCheck?.toObject?.() || {},
+      status: 'pending',
+      retryCount: (submission.duplicationCheck?.retryCount || 0) + 1
+    };
+    await submission.save();
+
+    // Trigger async PDE analysis
+    const submissionId = submission._id;
+    (async () => {
+      try {
+        console.log(`[PDE] Retrying analysis for submission: ${submissionId}`);
+        const pdeResult = await analyzePaper(submission.title, submission.abstract, submission.fileUrl);
+
+        let newStatus = 'submitted_dup_ok';
+        let dupCheckStatus = 'clean';
+
+        if (pdeResult.status === 'VERIFIED_DUPLICATE') {
+          newStatus = 'submitted_dup_suspect';
+          dupCheckStatus = 'verified_duplicate';
+        } else if (pdeResult.status === 'SUSPECTED_DUPLICATE') {
+          newStatus = 'submitted_dup_suspect';
+          dupCheckStatus = 'suspected_duplicate';
+        }
+
+        await Submission.findByIdAndUpdate(submissionId, {
+          status: newStatus,
+          duplicationCheck: {
+            pdePaperId: pdeResult.paper_id,
+            status: dupCheckStatus,
+            similarityScore: pdeResult.similarity_score,
+            matchedPaperId: pdeResult.matched_paper_id,
+            message: pdeResult.message,
+            checkedAt: new Date(),
+            retryCount: (submission.duplicationCheck?.retryCount || 0) + 1
+          }
+        });
+
+        console.log(`[PDE] Retry analysis complete for ${submissionId}: ${dupCheckStatus}`);
+      } catch (pdeErr) {
+        console.error(`[PDE] Retry analysis failed for ${submissionId}:`, pdeErr.message);
+        await Submission.findByIdAndUpdate(submissionId, {
+          status: 'submitted',
+          'duplicationCheck.status': 'error',
+          'duplicationCheck.message': 'Duplication check retry failed.',
+          'duplicationCheck.retryCount': (submission.duplicationCheck?.retryCount || 0) + 1
+        });
+      }
+    })();
+
+    res.json({
+      success: true,
+      message: 'Duplication check retry initiated. Results will update shortly.'
+    });
+
+  } catch (error) {
+    console.error('Retry dup check error:', error);
+    res.status(500).json({ success: false, message: 'Error retrying duplication check' });
   }
 });
 

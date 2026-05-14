@@ -79,19 +79,29 @@ export default function SubmissionDetails() {
     const getStatusBadge = (status) => {
         const variants = {
             submitted: 'info',
+            submitted_pending_dup_check: 'warning',
+            submitted_dup_ok: 'info',
+            submitted_dup_suspect: 'danger',
             under_review: 'warning',
             accepted: 'success',
             rejected: 'danger',
+            rejected_duplicate: 'danger',
             revision: 'default',
             pending: 'info',
+            manual_review_required: 'warning',
         };
         const statusLabels = {
             submitted: 'Submitted',
+            submitted_pending_dup_check: 'Checking for Duplicates',
+            submitted_dup_ok: 'Submitted (Original)',
+            submitted_dup_suspect: 'Submitted (Flagged)',
             under_review: 'Under Review',
             accepted: 'Accepted',
             rejected: 'Rejected',
+            rejected_duplicate: 'Rejected (Duplicate)',
             revision: 'Revision Requested',
-            pending: 'Pending'
+            pending: 'Pending',
+            manual_review_required: 'Manual Review Required',
         };
         return <Badge variant={variants[status] || 'default'}>{statusLabels[status] || status}</Badge>;
     };
@@ -109,15 +119,17 @@ export default function SubmissionDetails() {
     // Status timeline configuration
     const statusSteps = [
         { key: 'submitted', label: 'Submitted' },
+        { key: 'dup_check', label: 'Dup Check' },
         { key: 'under_review', label: 'Under Review' },
         { key: 'decision', label: 'Decision' }
     ];
 
     const getStatusProgress = (status) => {
-        if (status === 'submitted') return 1;
-        if (status === 'under_review') return 2;
-        if (status === 'revision') return 2;
-        if (['accepted', 'rejected'].includes(status)) return 3;
+        if (status === 'submitted' || status === 'submitted_pending_dup_check') return 1;
+        if (status === 'submitted_dup_ok' || status === 'submitted_dup_suspect') return 2;
+        if (status === 'under_review') return 3;
+        if (status === 'revision') return 3;
+        if (['accepted', 'rejected', 'rejected_duplicate'].includes(status)) return 4;
         return 1;
     };
 
@@ -341,14 +353,18 @@ export default function SubmissionDetails() {
                                         'bg-blue-50 border border-blue-200'
                                 }`}>
                                 <p className={`font-medium ${submission.status === 'accepted' ? 'text-green-800' :
-                                    submission.status === 'rejected' ? 'text-red-800' :
+                                    submission.status === 'rejected' || submission.status === 'rejected_duplicate' ? 'text-red-800' :
                                         submission.status === 'revision' ? 'text-yellow-800' :
                                             'text-blue-800'
                                     }`}>
                                     {submission.status === 'submitted' && '📄 Your paper has been submitted and is awaiting review.'}
+                                    {submission.status === 'submitted_pending_dup_check' && '⏳ Your paper is being checked for originality...'}
+                                    {submission.status === 'submitted_dup_ok' && '✅ Your paper passed the originality check and is awaiting organizer review.'}
+                                    {submission.status === 'submitted_dup_suspect' && '⚠️ Your paper has been flagged for review. The organizer will assess it shortly.'}
                                     {submission.status === 'under_review' && '🔍 Reviewers are currently evaluating your paper.'}
                                     {submission.status === 'accepted' && '🎉 Congratulations! Your paper has been accepted.'}
                                     {submission.status === 'rejected' && '📝 Unfortunately, your paper was not accepted this time.'}
+                                    {submission.status === 'rejected_duplicate' && '🔴 Your paper was rejected due to duplication concerns.'}
                                     {submission.status === 'revision' && '✏️ Please submit a revised version of your paper.'}
                                 </p>
                             </div>
@@ -562,6 +578,45 @@ export default function SubmissionDetails() {
                                         </p>
                                     </div>
                                 )}
+                            </Card>
+                        )}
+
+                        {/* Duplicate Rejection Details */}
+                        {submission.status === 'rejected_duplicate' && submission.rejectionDetails && (
+                            <Card className="mb-6 border-2 border-red-300 bg-red-50">
+                                <div className="flex items-start gap-4">
+                                    <div className="text-3xl">🔴</div>
+                                    <div className="flex-1">
+                                        <h2 className="text-lg font-bold text-red-800 mb-2">Rejected — Duplicate Detected</h2>
+                                        <div className="space-y-2 text-sm">
+                                            <p className="text-red-700">
+                                                <span className="font-medium">Reason:</span> {submission.rejectionDetails.reason}
+                                            </p>
+                                            {submission.duplicationCheck?.similarityScore != null && (
+                                                <div>
+                                                    <span className="font-medium text-red-700">Similarity Score:</span>
+                                                    <span className="ml-2 px-2 py-0.5 bg-red-200 text-red-900 rounded-full font-bold text-xs">
+                                                        {submission.duplicationCheck.similarityScore}%
+                                                    </span>
+                                                </div>
+                                            )}
+                                            {submission.duplicationCheck?.matchedPaperId && (
+                                                <p className="text-red-700">
+                                                    <span className="font-medium">Matched Reference:</span>{' '}
+                                                    <code className="bg-red-200 px-1 rounded text-xs">{submission.duplicationCheck.matchedPaperId}</code>
+                                                </p>
+                                            )}
+                                            {submission.rejectionDetails.rejectedAt && (
+                                                <p className="text-red-600">
+                                                    <span className="font-medium">Rejected on:</span> {formatDate(submission.rejectionDetails.rejectedAt)}
+                                                </p>
+                                            )}
+                                        </div>
+                                        <p className="mt-3 text-sm text-red-600">
+                                            If you believe this is in error, please contact the conference organizer.
+                                        </p>
+                                    </div>
+                                </div>
                             </Card>
                         )}
 

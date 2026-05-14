@@ -18,7 +18,18 @@ const submissionSchema = new mongoose.Schema({
   ],
   status: {
     type: String,
-    enum: ['submitted', 'under_review', 'accepted', 'rejected', 'revision'],
+    enum: [
+      'submitted',
+      'submitted_pending_dup_check',
+      'submitted_dup_ok',
+      'submitted_dup_suspect',
+      'under_review',
+      'accepted',
+      'rejected',
+      'rejected_duplicate',
+      'revision',
+      'manual_review_required'
+    ],
     default: 'submitted'
   },
   assignedReviewers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
@@ -43,6 +54,42 @@ const submissionSchema = new mongoose.Schema({
     endTime: String,
     venue: String
   },
+
+  // ========== PDE Integration Fields ==========
+
+  // Duplication check results from PDE
+  duplicationCheck: {
+    pdePaperId: { type: String, default: null },
+    status: {
+      type: String,
+      enum: ['pending', 'clean', 'suspected_duplicate', 'verified_duplicate', 'error', null],
+      default: null
+    },
+    similarityScore: { type: Number, default: null },
+    matchedPaperId: { type: String, default: null },
+    message: { type: String, default: null },
+    checkedAt: { type: Date, default: null },
+    retryCount: { type: Number, default: 0 }
+  },
+
+  // Rejection details (populated when status = rejected_duplicate)
+  rejectionDetails: {
+    reason: { type: String, default: null },
+    duplicateStatus: { type: String, default: null },
+    pdeSummary: { type: String, default: null },
+    rejectedAt: { type: Date, default: null }
+  },
+
+  // Cleanup tracking (tracks Cloudinary/PDE cleanup after duplicate rejection)
+  cleanupStatus: {
+    cloudinaryDeleted: { type: Boolean, default: false },
+    pdeHashDeleted: { type: Boolean, default: false },
+    cleanedAt: { type: Date, default: null },
+    cleanupError: { type: String, default: null }
+  },
+
+  // ========== End PDE Integration Fields ==========
+
   revisionCount: { type: Number, default: 0 }, // Tracks how many times paper was revised
   authorAttendanceMarked: { type: Boolean, default: false }, // For certificate eligibility
   authorAttendanceMarkedAt: { type: Date, default: null },
@@ -60,5 +107,6 @@ submissionSchema.index({ trackId: 1 });
 submissionSchema.index({ authorId: 1, status: 1 });
 submissionSchema.index({ 'coAuthors.email': 1 });
 submissionSchema.index({ conferenceId: 1, assignedCount: 1, keywords: 1 });
+submissionSchema.index({ 'duplicationCheck.status': 1 }); // PDE integration index
 
 module.exports = mongoose.model('Submission', submissionSchema);

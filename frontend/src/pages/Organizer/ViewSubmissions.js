@@ -15,7 +15,8 @@ import {
   getSubmissionReviewsOrganizer,
   scheduleSubmission,
   approveSubmission,
-  getConferenceDetailsOrganizer
+  getConferenceDetailsOrganizer,
+  retryDuplicationCheck
 } from '../../utils/api';
 import { viewPdfInNewTab, downloadPdfFile, extractFilename } from '../../utils/pdfHelper';
 
@@ -45,6 +46,7 @@ const ViewSubmissions = () => {
   const [scheduleTime, setScheduleTime] = useState('');
   const [saving, setSaving] = useState(false);
   const [approvingId, setApprovingId] = useState(null);
+  const [retryingDupCheck, setRetryingDupCheck] = useState(null);
 
   const fetchData = useCallback(async () => {
     try {
@@ -151,13 +153,56 @@ const ViewSubmissions = () => {
   const getStatusBadge = (status) => {
     const variants = {
       pending: 'warning',
+      submitted_pending_dup_check: 'warning',
+      submitted_dup_ok: 'info',
+      submitted_dup_suspect: 'danger',
       under_review: 'info',
       accepted: 'success',
       rejected: 'danger',
-      revision: 'default'
+      rejected_duplicate: 'danger',
+      revision: 'default',
+      manual_review_required: 'warning'
     };
-    const statusText = status?.replace('_', ' ') || 'pending';
-    return <Badge variant={variants[status] || 'default'}>{statusText.toUpperCase()}</Badge>;
+    const statusLabels = {
+      submitted_pending_dup_check: 'DUP CHECK PENDING',
+      submitted_dup_ok: 'ORIGINAL',
+      submitted_dup_suspect: 'FLAGGED',
+      rejected_duplicate: 'REJECTED (DUPLICATE)',
+      manual_review_required: 'MANUAL REVIEW'
+    };
+    const label = statusLabels[status] || status?.replace(/_/g, ' ')?.toUpperCase() || 'PENDING';
+    return <Badge variant={variants[status] || 'default'}>{label}</Badge>;
+  };
+
+  const getDupBadge = (dupCheck) => {
+    if (!dupCheck || !dupCheck.status) return null;
+    const config = {
+      pending: { color: 'bg-gray-100 text-gray-700 border-gray-300', icon: '⏳', label: 'Checking...' },
+      clean: { color: 'bg-green-100 text-green-800 border-green-300', icon: '✅', label: 'Original' },
+      suspected_duplicate: { color: 'bg-amber-100 text-amber-800 border-amber-300', icon: '⚠️', label: `Suspect (${dupCheck.similarityScore}%)` },
+      verified_duplicate: { color: 'bg-red-100 text-red-800 border-red-300', icon: '🔴', label: `Duplicate (${dupCheck.similarityScore}%)` },
+      error: { color: 'bg-gray-100 text-gray-600 border-gray-300', icon: '❌', label: 'Check Failed' }
+    };
+    const c = config[dupCheck.status] || config.pending;
+    return (
+      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold border ${c.color}`}>
+        {c.icon} {c.label}
+      </span>
+    );
+  };
+
+  const handleRetryDupCheck = async (e, submissionId) => {
+    e.stopPropagation();
+    try {
+      setRetryingDupCheck(submissionId);
+      await retryDuplicationCheck(submissionId);
+      // Wait a moment for the async check to update
+      setTimeout(() => fetchData(), 3000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to retry duplication check');
+    } finally {
+      setRetryingDupCheck(null);
+    }
   };
 
   const getRecommendationBadge = (rec) => {
@@ -252,10 +297,13 @@ const ViewSubmissions = () => {
           <div className="w-48">
             <Select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
               <option value="">All Statuses</option>
-              <option value="pending">Pending</option>
+              <option value="submitted_pending_dup_check">Dup Check Pending</option>
+              <option value="submitted_dup_ok">Original</option>
+              <option value="submitted_dup_suspect">Flagged (Suspect)</option>
               <option value="under_review">Under Review</option>
               <option value="accepted">Accepted</option>
               <option value="rejected">Rejected</option>
+              <option value="rejected_duplicate">Rejected (Duplicate)</option>
             </Select>
           </div>
         </div>
@@ -291,6 +339,7 @@ const ViewSubmissions = () => {
                         {submission.title}
                       </h3>
                       {getStatusBadge(submission.status)}
+                      {getDupBadge(submission.duplicationCheck)}
                       {submission.organizerApproved && (
                         <Badge variant="success">✓ Approved for Review</Badge>
                       )}
@@ -312,7 +361,7 @@ const ViewSubmissions = () => {
                     )}
                   </div>
                   <div className="flex flex-col gap-2 ml-4">
-                    {!submission.organizerApproved && submission.status === 'submitted' && (
+                    {!submission.organizerApproved && ['submitted', 'submitted_dup_ok', 'submitted_dup_suspect'].includes(submission.status) && (
                       <Button
                         variant="success"
                         size="sm"
@@ -320,6 +369,16 @@ const ViewSubmissions = () => {
                         disabled={approvingId === submission._id}
                       >
                         {approvingId === submission._id ? 'Approving...' : '✓ Approve for Review'}
+                      </Button>
+                    )}
+                    {submission.duplicationCheck?.status === 'error' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => handleRetryDupCheck(e, submission._id)}
+                        disabled={retryingDupCheck === submission._id}
+                      >
+                        {retryingDupCheck === submission._id ? 'Retrying...' : '🔄 Retry Check'}
                       </Button>
                     )}
                     <Button variant="outline" size="sm">
@@ -403,6 +462,68 @@ const ViewSubmissions = () => {
                 </div>
               )}
 
+              {/* Duplication Analysis Section */}
+              {selectedSubmission.duplicationCheck && selectedSubmission.duplicationCheck.status && (
+                <div className="mb-6">
+                  <h3 className="font-semibold text-gray-900 mb-3">Duplication Analysis</h3>
+                  <div className={`rounded-lg p-4 border-2 ${
+                    selectedSubmission.duplicationCheck.status === 'clean' ? 'bg-green-50 border-green-200' :
+                    selectedSubmission.duplicationCheck.status === 'verified_duplicate' ? 'bg-red-50 border-red-200' :
+                    selectedSubmission.duplicationCheck.status === 'suspected_duplicate' ? 'bg-amber-50 border-amber-200' :
+                    'bg-gray-50 border-gray-200'
+                  }`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <div className="flex items-center gap-2">
+                        {getDupBadge(selectedSubmission.duplicationCheck)}
+                      </div>
+                      {selectedSubmission.duplicationCheck.checkedAt && (
+                        <span className="text-xs text-gray-500">
+                          Checked: {formatDate(selectedSubmission.duplicationCheck.checkedAt)}
+                        </span>
+                      )}
+                    </div>
+                    {selectedSubmission.duplicationCheck.similarityScore != null && (
+                      <div className="mb-3">
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="font-medium">Similarity Score</span>
+                          <span className="font-bold">{selectedSubmission.duplicationCheck.similarityScore}%</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2.5">
+                          <div
+                            className={`h-2.5 rounded-full transition-all ${
+                              selectedSubmission.duplicationCheck.similarityScore >= 90 ? 'bg-red-500' :
+                              selectedSubmission.duplicationCheck.similarityScore >= 75 ? 'bg-amber-500' :
+                              'bg-green-500'
+                            }`}
+                            style={{ width: `${Math.min(selectedSubmission.duplicationCheck.similarityScore, 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {selectedSubmission.duplicationCheck.matchedPaperId && (
+                      <p className="text-sm mb-2">
+                        <span className="font-medium">Matched Reference:</span>{' '}
+                        <code className="bg-gray-200 px-1 rounded text-xs">{selectedSubmission.duplicationCheck.matchedPaperId}</code>
+                      </p>
+                    )}
+                    {selectedSubmission.duplicationCheck.message && (
+                      <p className="text-sm text-gray-700">{selectedSubmission.duplicationCheck.message}</p>
+                    )}
+                    {selectedSubmission.duplicationCheck.status === 'error' && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={(e) => handleRetryDupCheck(e, selectedSubmission._id)}
+                        disabled={retryingDupCheck === selectedSubmission._id}
+                        className="mt-2"
+                      >
+                        {retryingDupCheck === selectedSubmission._id ? 'Retrying...' : '🔄 Retry Duplication Check'}
+                      </Button>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {/* Reviews Section */}
               <div className="mb-6">
                 <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-3 mb-3">
@@ -455,21 +576,22 @@ const ViewSubmissions = () => {
               <div className="border-t pt-6">
                 <h3 className="font-semibold text-gray-900 mb-4">Make Decision</h3>
 
-                <div className="grid grid-cols-3 gap-3 mb-4">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
                   {[
-                    { value: 'accepted', label: 'Accept', color: 'border-green-600 bg-green-50' },
-                    { value: 'rejected', label: 'Reject', color: 'border-red-600 bg-red-50' },
-                    { value: 'under_review', label: 'Keep Under Review', color: 'border-blue-600 bg-blue-50' }
+                    { value: 'accepted', label: '✓ Accept', color: 'border-green-600 bg-green-50' },
+                    { value: 'rejected', label: '✗ Reject', color: 'border-red-600 bg-red-50' },
+                    { value: 'rejected_duplicate', label: '🔴 Reject Duplicate', color: 'border-red-800 bg-red-100' },
+                    { value: 'under_review', label: '🔍 Under Review', color: 'border-blue-600 bg-blue-50' }
                   ].map((opt) => (
                     <button
                       key={opt.value}
                       type="button"
                       onClick={() => setDecision(opt.value)}
-                      disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
+                      disabled={['accepted', 'rejected', 'rejected_duplicate'].includes(selectedSubmission.status)}
                       className={`p-3 rounded-lg border-2 text-center transition-all ${decision === opt.value
                         ? opt.color + ' border-2'
                         : 'border-gray-200 hover:border-gray-300'
-                        } ${(selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected')
+                        } ${['accepted', 'rejected', 'rejected_duplicate'].includes(selectedSubmission.status)
                           ? 'opacity-50 cursor-not-allowed'
                           : ''
                         }`}
@@ -488,7 +610,7 @@ const ViewSubmissions = () => {
                     onChange={(e) => setFeedback(e.target.value)}
                     placeholder="Provide feedback for the author..."
                     rows={3}
-                    disabled={selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
+                    disabled={['accepted', 'rejected', 'rejected_duplicate'].includes(selectedSubmission.status)}
                   />
                 </div>
 
@@ -522,7 +644,7 @@ const ViewSubmissions = () => {
                 <div className="flex gap-3">
                   <Button
                     onClick={handleDecision}
-                    disabled={saving || !decision || selectedSubmission.status === 'accepted' || selectedSubmission.status === 'rejected'}
+                    disabled={saving || !decision || ['accepted', 'rejected', 'rejected_duplicate'].includes(selectedSubmission.status)}
                     fullWidth
                   >
                     {saving ? 'Saving...' : 'Save Decision'}

@@ -470,6 +470,13 @@ export const getEligibleReviewers = async (conferenceId) => {
   return res.data;
 };
 
+// ============ DUPLICATION CHECK APIs ============
+
+export const retryDuplicationCheck = async (submissionId) => {
+  const res = await axiosInstance.post(`/organizer/submissions/${submissionId}/retry-dup-check`);
+  return res.data;
+};
+
 // ============ PARTICIPANT APIs ============
 
 export const getParticipantDashboard = async () => {

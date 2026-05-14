@@ -8,6 +8,7 @@ const Submission = require('../models/Submission');
 const Review = require('../models/Review');
 const User = require('../models/User');
 const { sendEmail, templates } = require('../utils/emailService');
+const { analyzePaper } = require('../utils/pdeClient');
 
 // All author routes require authentication and author role
 router.use(auth, authorize('author'));
@@ -245,7 +246,7 @@ router.post(
         }
       }
 
-      // Create submission (track-scoped)
+      // Create submission (track-scoped) with pending duplication check status
       const submission = new Submission({
         title,
         abstract,
@@ -255,7 +256,11 @@ router.post(
         authorId: req.user.userId,
         conferenceId,
         trackId,
-        status: 'submitted'
+        status: 'submitted_pending_dup_check',
+        duplicationCheck: {
+          status: 'pending',
+          checkedAt: null
+        }
       });
 
       await submission.save();
@@ -290,7 +295,56 @@ router.post(
         ).catch(err => console.error('Email error:', err));
       }
 
-      res.status(201).json({ success: true, message: 'Submission created', data: submission });
+      // Fire-and-forget: Trigger async PDE duplication analysis
+      // This does NOT block the response — the author sees confirmation immediately
+      const submissionIdForPde = submission._id;
+      (async () => {
+        try {
+          console.log(`[PDE] Starting async analysis for submission: ${submissionIdForPde}`);
+          const pdeResult = await analyzePaper(title, abstract, fileUrl);
+
+          // Map PDE status to CMS status
+          let newStatus = 'submitted_dup_ok';
+          let dupCheckStatus = 'clean';
+
+          if (pdeResult.status === 'VERIFIED_DUPLICATE') {
+            newStatus = 'submitted_dup_suspect';
+            dupCheckStatus = 'verified_duplicate';
+          } else if (pdeResult.status === 'SUSPECTED_DUPLICATE') {
+            newStatus = 'submitted_dup_suspect';
+            dupCheckStatus = 'suspected_duplicate';
+          }
+
+          await Submission.findByIdAndUpdate(submissionIdForPde, {
+            status: newStatus,
+            duplicationCheck: {
+              pdePaperId: pdeResult.paper_id,
+              status: dupCheckStatus,
+              similarityScore: pdeResult.similarity_score,
+              matchedPaperId: pdeResult.matched_paper_id,
+              message: pdeResult.message,
+              checkedAt: new Date()
+            }
+          });
+
+          console.log(`[PDE] Analysis complete for ${submissionIdForPde}: ${dupCheckStatus} (score: ${pdeResult.similarity_score})`);
+        } catch (pdeErr) {
+          console.error(`[PDE] Analysis failed for ${submissionIdForPde}:`, pdeErr.message);
+          // Fallback: set status to submitted (normal flow continues) with error recorded
+          await Submission.findByIdAndUpdate(submissionIdForPde, {
+            status: 'submitted',
+            'duplicationCheck.status': 'error',
+            'duplicationCheck.message': 'Duplication check failed. Manual review may be needed.',
+            'duplicationCheck.retryCount': 1
+          });
+        }
+      })();
+
+      res.status(201).json({
+        success: true,
+        message: 'Submission created. Duplication check in progress.',
+        data: submission
+      });
 
     } catch (error) {
       console.error('Author submit error:', error);

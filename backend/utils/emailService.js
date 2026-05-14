@@ -311,6 +311,39 @@ const templates = {
       <p>Best regards,<br>CMS System</p>
     `,
     text: `Weekly Conference Digest - ${conference.name}\n\nTotal Submissions: ${stats.totalSubmissions}\nPending Reviews: ${stats.pendingReviews}\nPapers Awaiting Decision: ${stats.awaitingDecision}\n\nPlease log in for more details.`
+  }),
+
+  // 13. Paper Rejected Due to Duplication (PDE Integration)
+  paperRejectedDuplicate: (author, paper, conference) => ({
+    subject: `Paper Submission Rejected — Duplicate Detected — ${conference.name}`,
+    html: `
+      <h2>Paper Submission Rejected</h2>
+      <p>Dear ${author.name},</p>
+      <p>Your paper submission was rejected because it was identified as 
+      <strong>${paper.duplicationCheck?.status === 'verified_duplicate' ? 'a verified duplicate' : 'suspicious (potential duplicate)'}</strong> 
+      by the PaperDuplicationEngine during organizer review.</p>
+      
+      <div style="background: #fee2e2; padding: 15px; border-radius: 5px; margin: 20px 0; border-left: 4px solid #dc2626;">
+        <p><strong>Paper:</strong> ${paper.title}</p>
+        <p><strong>Conference:</strong> ${conference.name}</p>
+        <p><strong>Duplication Status:</strong> ${(paper.duplicationCheck?.status || 'unknown').replace(/_/g, ' ').toUpperCase()}</p>
+        <p><strong>Similarity Score:</strong> ${paper.duplicationCheck?.similarityScore ?? 'N/A'}%</p>
+        ${paper.duplicationCheck?.matchedPaperId ? `<p><strong>Matched Reference:</strong> ${paper.duplicationCheck.matchedPaperId}</p>` : ''}
+        <p><strong>Decision Date:</strong> ${new Date().toLocaleString()}</p>
+      </div>
+      
+      ${paper.duplicationCheck?.message ? `
+      <div style="background: #f3f4f6; padding: 15px; border-radius: 5px; margin: 20px 0;">
+        <p><strong>Analysis Details:</strong></p>
+        <p>${paper.duplicationCheck.message}</p>
+      </div>
+      ` : ''}
+      
+      <p>If you believe this is in error, please contact the conference organizer directly to discuss an appeal.</p>
+      
+      <p>Best regards,<br>${conference.name} Team</p>
+    `,
+    text: `Paper Submission Rejected\n\nDear ${author.name},\n\nYour paper "${paper.title}" was rejected due to duplication detection at ${conference.name}.\n\nSimilarity Score: ${paper.duplicationCheck?.similarityScore ?? 'N/A'}%\nStatus: ${(paper.duplicationCheck?.status || 'unknown').replace(/_/g, ' ')}\n\nIf you believe this is an error, please contact the conference organizer.`
   })
 };
 
