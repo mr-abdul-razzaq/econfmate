@@ -4,7 +4,6 @@ import { getUserProfile, updateUserProfile } from '../utils/api';
 import Navbar from '../components/Navbar';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import Textarea from '../components/Textarea';
 import Card from '../components/Card';
 import Loading from '../components/Loading';
 import DomainMultiSelect from '../components/DomainMultiSelect';
