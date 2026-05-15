@@ -79,9 +79,9 @@ export default function SubmissionDetails() {
     const getStatusBadge = (status) => {
         const variants = {
             submitted: 'info',
-            submitted_pending_dup_check: 'warning',
+            submitted_pending_dup_check: 'info',
             submitted_dup_ok: 'info',
-            submitted_dup_suspect: 'danger',
+            submitted_dup_suspect: 'info',
             under_review: 'warning',
             accepted: 'success',
             rejected: 'danger',
@@ -91,10 +91,10 @@ export default function SubmissionDetails() {
             manual_review_required: 'warning',
         };
         const statusLabels = {
-            submitted: 'Submitted',
-            submitted_pending_dup_check: 'Checking for Duplicates',
-            submitted_dup_ok: 'Submitted (Original)',
-            submitted_dup_suspect: 'Submitted (Flagged)',
+            submitted: 'Under Review',
+            submitted_pending_dup_check: 'Under Review',
+            submitted_dup_ok: 'Under Review',
+            submitted_dup_suspect: 'Under Review',
             under_review: 'Under Review',
             accepted: 'Accepted',
             rejected: 'Rejected',

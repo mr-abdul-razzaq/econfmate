@@ -131,15 +131,8 @@ async function cleanupDuplicateSubmission(submissionId) {
       pdeHashDeleted = true; // No PDE record to delete
     }
 
-    // 3. Update submission cleanup status
-    await Submission.findByIdAndUpdate(submissionId, {
-      cleanupStatus: {
-        cloudinaryDeleted,
-        pdeHashDeleted,
-        cleanedAt: new Date(),
-        cleanupError: errors.length > 0 ? errors.join('; ') : null
-      }
-    });
+    // 3. Delete the submission from MongoDB
+    await Submission.findByIdAndDelete(submissionId);
 
     console.log(`[Cleanup] Cleanup complete for ${submissionId}:`, {
       cloudinaryDeleted,
@@ -151,14 +144,7 @@ async function cleanupDuplicateSubmission(submissionId) {
     console.error('[Cleanup] Fatal cleanup error:', sanitizeMessage(err.message));
     errors.push(`Fatal: ${sanitizeMessage(err.message)}`);
 
-    // Try to save the error state even if cleanup failed
-    try {
-      await Submission.findByIdAndUpdate(submissionId, {
-        'cleanupStatus.cleanupError': errors.join('; ')
-      });
-    } catch (saveErr) {
-      console.error('[Cleanup] Failed to save cleanup error state:', sanitizeMessage(saveErr.message));
-    }
+    // Cannot save error state to submission because we might have deleted it, or it might be the reason for the error.
   }
 
   return { cloudinaryDeleted, pdeHashDeleted, errors };

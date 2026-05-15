@@ -261,16 +261,35 @@ router.get('/bids', async (req, res) => {
       reviewMap.set(r.submissionId.toString(), r);
     });
 
+    // Fetch active assignments for this reviewer to determine if any bid is already assigned
+    const Assignment = require('../models/Assignment');
+    const assignments = await Assignment.find({
+      reviewerId,
+      submissionId: { $in: submissionIds },
+      status: 'ACTIVE'
+    }).lean();
+
+    const assignmentMap = new Set(assignments.map(a => a.submissionId.toString()));
+
     // Enrich bids with review status
     const enrichedBids = bids.map(bid => {
       const subId = bid.submissionId?._id?.toString();
       const review = subId ? reviewMap.get(subId) : null;
+      const isAssigned = subId ? assignmentMap.has(subId) : false;
       const submissionStatus = bid.submissionId?.status;
+
+      let computedStatus = bid.status;
+      // If the paper is actively assigned to the reviewer, the bid is effectively approved
+      if (isAssigned && computedStatus === 'PENDING') {
+        computedStatus = 'APPROVED';
+      }
+
+      const bidWithUpdatedStatus = { ...bid, status: computedStatus };
 
       if (!review) {
         // No review yet
         return {
-          ...bid,
+          ...bidWithUpdatedStatus,
           reviewStatus: {
             hasReview: false,
             canReview: submissionStatus === 'under_review' || submissionStatus === 'submitted'
@@ -294,7 +313,7 @@ router.get('/bids', async (req, res) => {
         (submissionStatus === 'submitted' || submissionStatus === 'under_review');
 
       return {
-        ...bid,
+        ...bidWithUpdatedStatus,
         reviewStatus: {
           hasReview: true,
           recommendation: review.recommendation,

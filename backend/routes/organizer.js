@@ -345,8 +345,22 @@ router.get('/conferences/:id/submissions', async (req, res) => {
           displayMessage: r.status === 'pending_revision' ? 'Revision requested - awaiting author update' : null
         }));
 
+        let matchedPaperTitle = null;
+        if (submission.duplicationCheck && submission.duplicationCheck.matchedPaperId) {
+          const matchedPaper = await Submission.findOne({ 'duplicationCheck.pdePaperId': submission.duplicationCheck.matchedPaperId })
+            .select('title')
+            .lean();
+          if (matchedPaper) {
+            matchedPaperTitle = matchedPaper.title;
+          }
+        }
+
         return {
           ...submission,
+          duplicationCheck: submission.duplicationCheck ? {
+            ...submission.duplicationCheck,
+            matchedPaperTitle
+          } : submission.duplicationCheck,
           reviewStats: {
             count: submittedReviews.length,  // Only count final reviews
             pendingCount: pendingReviews.length,
@@ -2227,6 +2241,17 @@ router.post('/conferences/:id/auto-assign', [
         for (const revId of reviewerUpdateIds) {
           updatePromises.push(
             User.findByIdAndUpdate(revId, { lastAssignedAt: new Date() }, { session })
+          );
+        }
+
+        // Update corresponding Pending bids to Approved
+        for (const assignment of newAssignments) {
+          updatePromises.push(
+            Bid.updateOne(
+              { reviewerId: assignment.reviewerId, submissionId: assignment.submissionId, status: 'PENDING' },
+              { $set: { status: 'APPROVED', 'decision.decidedAt': new Date(), 'decision.reason': 'Auto-approved by assignment engine' } },
+              { session }
+            )
           );
         }
 

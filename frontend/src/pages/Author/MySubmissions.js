@@ -66,6 +66,9 @@ export default function MySubmissions() {
       rejected: 'danger',
       pending: 'info',
       submitted: 'info',
+      submitted_pending_dup_check: 'info',
+      submitted_dup_ok: 'info',
+      submitted_dup_suspect: 'info',
       revision: 'warning'
     };
     const statusLabels = {
@@ -73,7 +76,10 @@ export default function MySubmissions() {
       accepted: 'Accepted',
       rejected: 'Rejected',
       pending: 'Pending',
-      submitted: 'Submitted',
+      submitted: 'Under Review',
+      submitted_pending_dup_check: 'Under Review',
+      submitted_dup_ok: 'Under Review',
+      submitted_dup_suspect: 'Under Review',
       revision: '⚠️ Revision Needed'
     };
     return <Badge variant={variants[status] || 'default'}>{statusLabels[status] || status?.replace('_', ' ')}</Badge>;

@@ -73,29 +73,31 @@ export const updateUserProfile = async (data) => {
 
 // ============ TRACK APIs ============
 
-export const getTracks = async (conferenceId, token) => {
-  // Try endpoints in order: author -> organizer -> reviewer
+export const getTracks = async (conferenceId) => {
   try {
-    const res = await axiosInstance.get(`/author/conferences/${conferenceId}/tracks`);
-    return res.data;
-  } catch (err) {
-    if (err.response?.status === 403 || err.response?.status === 404) {
+    const token = localStorage.getItem('token');
+    let role = null;
+    if (token) {
       try {
-        const res = await axiosInstance.get(`/tracks/conference/${conferenceId}`);
-        return res.data;
-      } catch (err2) {
-        // Try reviewer endpoint
-        if (err2.response?.status === 403 || err2.response?.status === 404) {
-          try {
-            const res = await axiosInstance.get(`/reviewer/conferences/${conferenceId}/tracks`);
-            return res.data;
-          } catch (err3) {
-            return { data: [] };
-          }
-        }
-        return { data: [] };
+        const payload = JSON.parse(atob(token.split('.')[1]));
+        role = payload.role;
+      } catch (e) {
+        // ignore parse errors
       }
     }
+
+    let res;
+    if (role === 'organizer') {
+      res = await axiosInstance.get(`/tracks/conference/${conferenceId}`);
+    } else if (role === 'reviewer') {
+      res = await axiosInstance.get(`/reviewer/conferences/${conferenceId}/tracks`);
+    } else {
+      // Author and others
+      res = await axiosInstance.get(`/author/conferences/${conferenceId}/tracks`);
+    }
+    return res.data;
+  } catch (err) {
+    console.error('Error fetching tracks:', err);
     return { data: [] };
   }
 };

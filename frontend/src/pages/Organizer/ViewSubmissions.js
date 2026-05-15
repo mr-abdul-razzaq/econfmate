@@ -500,7 +500,12 @@ const ViewSubmissions = () => {
                         </div>
                       </div>
                     )}
-                    {selectedSubmission.duplicationCheck.matchedPaperId && (
+                    {selectedSubmission.duplicationCheck.matchedPaperTitle ? (
+                      <p className="text-sm mb-2">
+                        <span className="font-medium">Matched Reference:</span>{' '}
+                        <span className="text-gray-900 font-semibold">{selectedSubmission.duplicationCheck.matchedPaperTitle}</span>
+                      </p>
+                    ) : selectedSubmission.duplicationCheck.matchedPaperId && (
                       <p className="text-sm mb-2">
                         <span className="font-medium">Matched Reference:</span>{' '}
                         <code className="bg-gray-200 px-1 rounded text-xs">{selectedSubmission.duplicationCheck.matchedPaperId}</code>
